@@ -24,7 +24,7 @@
     zsh.enable = true;
   };
   environment.systemPackages = [
-    pkgs.xsel
+    pkgs.wl-clipboard
     pkgs.vim
     pkgs.home-manager
     pkgs.podman
