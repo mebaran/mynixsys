@@ -25,9 +25,8 @@
   };
   environment.systemPackages = [
     pkgs.wl-clipboard
-    pkgs.vim
+    pkgs.neovim
     pkgs.home-manager
-    pkgs.podman
   ];
 
   users.defaultUserShell = pkgs.zsh;

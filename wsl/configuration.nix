@@ -14,14 +14,8 @@
     <nixos-wsl/modules>
     ../common
     ../common/nvidia.nix
+    ./wsl.nix
   ];
-
-  #wsl config
-  wsl.enable = true;
-  wsl.defaultUser = "mebaran";
-  wsl.interop.includePath = false;
-  wsl.interop.register = true;
-  wsl.useWindowsDriver = true;
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
