@@ -27,6 +27,7 @@
     mynixhome,
     ...
   }: {
+    homeConfigurations = mynixhome.homeConfigurations;
     nixosConfigurations = {
       wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -52,17 +53,6 @@
           ./common
           ./common/nvidia.nix
           ./omen/configuration.nix
-
-          # Home manager
-          home-manager.nixosModules.home-manager
-
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-
-            # Import your user's home-manager config from GitHub
-            home-manager.users.mebaran = mynixhome.homeConfigurations.mebaran;
-          }
         ];
       };
     };

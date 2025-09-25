@@ -27,6 +27,7 @@
     pkgs.wl-clipboard
     pkgs.neovim
     pkgs.home-manager
+    pkgs.nh
   ];
 
   users.defaultUserShell = pkgs.zsh;
