@@ -18,7 +18,7 @@
     ...
   }: {
     nixosConfigurations = {
-      nixos = nixpkgs.lib.nixosSystem {
+      wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
@@ -33,12 +33,11 @@
         ];
       };
 
-      omen-nixos = nixpkgs.lib.nixosSystem {
+      omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          determinate.nixosModules.default
           ./common
-          ./common/nvida.nix
+          ./common/nvidia.nix
 
           ./omen/configuration.nix
         ];
