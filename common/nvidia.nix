@@ -5,10 +5,7 @@
   #cuda
   hardware = {
     nvidia-container-toolkit.enable = true;
-    nvidia = {
-      open = true;
-      nvidiaSettings = false;
-    };
+    nvidia.open = true;
     graphics.enable = true;
   };
   services.xserver.videoDrivers = ["nvidia"];
@@ -24,4 +21,3 @@
     MESA_D3D12_DEFAULT_ADAPTER_NAME = "Nvidia";
   };
 }
-

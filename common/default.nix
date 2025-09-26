@@ -22,10 +22,11 @@
     git.enable = true;
     nix-ld.enable = true;
     zsh.enable = true;
+    neovim.enable = true;
   };
+  
   environment.systemPackages = [
     pkgs.wl-clipboard
-    pkgs.neovim
     pkgs.home-manager
     pkgs.nh
   ];

@@ -23,7 +23,6 @@
     nixpkgs,
     nixos-wsl,
     determinate,
-    home-manager,
     mynixhome,
     ...
   }: {
@@ -52,6 +51,7 @@
           # System modules
           ./common
           ./common/nvidia.nix
+          ./common/desktop.nix
           ./omen/configuration.nix
         ];
       };
