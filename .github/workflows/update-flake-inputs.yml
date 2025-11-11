@@ -1,0 +1,32 @@
+name: Update flake inputs
+
+on:
+  schedule:
+    # 03:00 PST every Monday == 11:00 UTC cron below
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+
+jobs:
+  update-flake-inputs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update flake.lock
+        id: update-flake-lock
+        uses: DeterminateSystems/update-flake-lock@v21
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-msg: "chore: update flake inputs"
+          pr-title: "chore: weekly flake update"
+          pr-labels: dependencies,automation
+          branch: chore/weekly-flake-update
+      - name: Enable auto-merge
+        if: ${{ steps.update-flake-lock.outputs.pull-request-number != '' }}
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ steps.update-flake-lock.outputs.pull-request-number }}
+          merge-method: squash
