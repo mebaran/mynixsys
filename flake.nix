@@ -19,7 +19,6 @@
   };
 
   outputs = {
-    self,
     nixpkgs,
     nixos-wsl,
     determinate,
@@ -28,7 +27,7 @@
   }: {
     homeConfigurations = mynixhome.homeConfigurations;
     nixosConfigurations = {
-      wsl = nixpkgs.lib.nixosSystem {
+      nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
