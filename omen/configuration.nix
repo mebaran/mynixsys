@@ -8,7 +8,6 @@
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
-      ./nvidia.nix
     ];
 
   # Bootloader.
@@ -73,12 +72,22 @@
 
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;
-
+  services.sunshine = {
+    package = pkgs.sunshine.override {
+      cudaSupport = true;
+    };
+    enable = true;
+    autoStart = true;
+    capSysAdmin = true;
+    openFirewall = true;
+  };
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;
+  # enable RDP ports too
+  networking.firewall.allowedTCPPorts = [3389];
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions

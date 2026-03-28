@@ -10,6 +10,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # extra flakes for more more modules
+    niri = {
+      url = "github:sodiboo/niri-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Home Manager flake from your GitHub repo
     mynixhome = {
       url = "github:mebaran/mynixhome";
@@ -23,6 +29,7 @@
     nixos-wsl,
     determinate,
     mynixhome,
+    niri,
     ...
   }: {
     homeConfigurations = mynixhome.homeConfigurations;
@@ -31,6 +38,7 @@
         system = "x86_64-linux";
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
+          determinate.nixosModules.default
           nixos-wsl.nixosModules.default
 
           # Shared common configurations (assuming these exist at these paths)
@@ -46,8 +54,8 @@
         system = "x86_64-linux";
         modules = [
           determinate.nixosModules.default
+          niri.nixosModules.niri
 
-          # System modules
           ./common
           ./common/nvidia.nix
           ./common/desktop.nix
