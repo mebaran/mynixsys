@@ -1,5 +1,4 @@
 {
-
   # Abstracted WSL-specific configuration
   # This is based on the original configuration.nix but without imports
   # to make it reusable in flakes.

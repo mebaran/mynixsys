@@ -1,5 +1,4 @@
-{pkgs, ...}:
-{
+{pkgs, ...}: {
   nix.settings.experimental-features = ["nix-command" "flakes"];
   nixpkgs.config.allowUnfree = true;
 
@@ -24,7 +23,7 @@
     zsh.enable = true;
     neovim.enable = true;
   };
-  
+
   environment.systemPackages = [
     pkgs.wl-clipboard
     pkgs.home-manager

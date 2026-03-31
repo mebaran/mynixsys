@@ -1,6 +1,13 @@
 {
   description = "My NixOS WSL Flake Configuration";
 
+  nixConfig = {
+    extra-substituters = ["https://cache.numtide.com"];
+    extra-trusted-public-keys = [
+      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable"; # Matches a stable release; update if needed for 24.11 features
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
@@ -13,6 +20,16 @@
     # extra flakes for more more modules
     niri = {
       url = "github:sodiboo/niri-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    microvm = {
+      url = "github:microvm-nix/microvm.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    llm-agents = {
+      url = "github:numtide/llm-agents.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -30,12 +47,21 @@
     determinate,
     mynixhome,
     niri,
+    microvm,
+    llm-agents,
     ...
-  }: {
+  }: let
+    forAllSystems = nixpkgs.lib.genAttrs ["x86_64-linux"];
+  in {
+    formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
+
     homeConfigurations = mynixhome.homeConfigurations;
     nixosConfigurations = {
       nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
+        specialArgs = {
+          inherit llm-agents microvm;
+        };
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
           determinate.nixosModules.default
@@ -52,14 +78,19 @@
 
       omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
+        specialArgs = {
+          inherit llm-agents microvm;
+        };
         modules = [
           determinate.nixosModules.default
           niri.nixosModules.niri
+          microvm.nixosModules.host
 
           ./common
           ./common/nvidia.nix
           ./common/desktop.nix
           ./omen/configuration.nix
+          ./microvm/openclaw-microvm.nix
         ];
       };
     };

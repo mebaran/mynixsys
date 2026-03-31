@@ -46,6 +46,6 @@
     #media-session.enable = true;
   };
 
-  # Niri DE 
+  # Niri DE
   programs.niri.enable = true;
 }

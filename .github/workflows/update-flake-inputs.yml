@@ -1,32 +1,55 @@
-name: Update flake inputs
+name: Update Flake Inputs
 
 on:
   schedule:
-    # 03:00 PST every Monday == 11:00 UTC cron below
-    - cron: "0 11 * * 1"
-  workflow_dispatch:
+    - cron: "0 11 * * 1"  # Every Monday at 11 AM UTC
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  update-flake-inputs:
+  update-flake:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Update flake.lock
-        id: update-flake-lock
-        uses: DeterminateSystems/update-flake-lock@v21
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update flake inputs
+        run: nix flake update
+
+      - name: Check flake
+        run: nix flake check
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-msg: "chore: update flake inputs"
-          pr-title: "chore: weekly flake update"
-          pr-labels: dependencies,automation
-          branch: chore/weekly-flake-update
-      - name: Enable auto-merge
-        if: ${{ steps.update-flake-lock.outputs.pull-request-number != '' }}
-        uses: peter-evans/enable-pull-request-automerge@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          pull-request-number: ${{ steps.update-flake-lock.outputs.pull-request-number }}
-          merge-method: squash
+          commit-message: "chore: update flake inputs"
+          title: "Weekly flake inputs update"
+          body: |
+            Automated weekly update of Nix flake inputs.
+
+            Changes:
+            - Updated nixpkgs to latest unstable
+            - Updated home-manager to latest version
+            - Updated NixOS-WSL and other flake inputs
+
+            Please review the changes before merging.
+          branch: update-flake-inputs
+          delete-branch: true
+
+      - name: Merge PR immediately
+        if: steps.create-pr.outputs.pull-request-number
+        run: |
+          gh pr merge ${{ steps.create-pr.outputs.pull-request-number }} --squash --delete-branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
