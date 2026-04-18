@@ -23,7 +23,7 @@ jobs:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update mynixhome input
-        run: nix flake lock --update-input mynixhome
+        run: nix flake update mynixhome
 
       - name: Check flake
         run: nix flake check
