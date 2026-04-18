@@ -1,0 +1,53 @@
+name: Update Mynixhome Input
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'  # Every Monday at 10 AM UTC
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-mynixhome:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update mynixhome input
+        run: nix flake lock --update-input mynixhome
+
+      - name: Check flake
+        run: nix flake check
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update mynixhome flake input"
+          title: "Weekly mynixhome flake input update"
+          body: |
+            Automated weekly update of the mynixhome flake input.
+
+            Changes:
+            - Updated mynixhome to the latest revision
+
+            Please review the changes before merging.
+          branch: update-mynixhome-input
+          delete-branch: true
+
+      - name: Merge PR immediately
+        if: steps.create-pr.outputs.pull-request-number
+        run: |
+          gh pr merge ${{ steps.create-pr.outputs.pull-request-number }} --squash --delete-branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
