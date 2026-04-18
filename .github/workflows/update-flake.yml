@@ -2,7 +2,7 @@ name: Update Flake Inputs
 
 on:
   schedule:
-    - cron: "0 11 * * 1"  # Every Monday at 11 AM UTC
+    - cron: '0 9 * * 1'  # Every Monday at 9 AM UTC
   workflow_dispatch: # Allow manual triggering
 
 permissions:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   update-flake:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,12 +37,12 @@ jobs:
           title: "Weekly flake inputs update"
           body: |
             Automated weekly update of Nix flake inputs.
-
+            
             Changes:
             - Updated nixpkgs to latest unstable
             - Updated home-manager to latest version
             - Updated NixOS-WSL and other flake inputs
-
+            
             Please review the changes before merging.
           branch: update-flake-inputs
           delete-branch: true
