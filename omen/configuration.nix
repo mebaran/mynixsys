@@ -4,8 +4,14 @@
 {
   config,
   pkgs,
+  utils,
   ...
-}: {
+}: let
+  usbKeyFsUuid = "1E71-D655";
+  luksRootUuid = "89d4e83d-85cf-44c0-8d7e-6ecdd790ecc1";
+  luksRootName = "luks-${luksRootUuid}";
+  luksRootCryptsetupUnit = "systemd-cryptsetup@${utils.escapeSystemdPath luksRootName}.service";
+in {
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
@@ -17,6 +23,55 @@
 
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  boot.initrd.supportedFilesystems = ["vfat"];
+  boot.initrd.luks.devices.${luksRootName} = {
+    device = "/dev/disk/by-uuid/${luksRootUuid}";
+    keyFile = "/key/luks.key";
+    keyFileTimeout = 10;
+  };
+
+  boot.initrd.systemd.services.mount-luks-key-usb = {
+    description = "Mount USB LUKS key";
+    requiredBy = [luksRootCryptsetupUnit];
+    before = [
+      luksRootCryptsetupUnit
+      "cryptsetup-pre.target"
+      "shutdown.target"
+    ];
+    conflicts = ["shutdown.target"];
+    startLimitBurst = 0;
+    startLimitIntervalSec = 0;
+    unitConfig.DefaultDependencies = false;
+    script = ''
+      mkdir -p /key
+
+      for _ in $(seq 1 10); do
+        if [ -b /dev/disk/by-uuid/${usbKeyFsUuid} ]; then
+          exec mount -t vfat -o ro /dev/disk/by-uuid/${usbKeyFsUuid} /key
+        fi
+        sleep 1
+      done
+
+      echo "USB key partition /dev/disk/by-uuid/${usbKeyFsUuid} not found"
+      exit 0
+    '';
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+  };
+
+  systemd.services.umount-luks-key-usb = {
+    description = "Unmount USB LUKS key after boot";
+    wantedBy = ["multi-user.target"];
+    after = ["local-fs.target"];
+    unitConfig.ConditionPathIsMountPoint = "/key";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.util-linux}/bin/umount /key";
+    };
+  };
 
   nix.settings.experimental-features = ["nix-command" "flakes"];
 
