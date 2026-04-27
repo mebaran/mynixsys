@@ -595,11 +595,11 @@
         "stylix": "stylix"
       },
       "locked": {
-        "lastModified": 1776682302,
-        "narHash": "sha256-8Ymle8QRI7/owdjy+Rl9iD6FF9nrvcKk78/+vM6iqfU=",
+        "lastModified": 1777288916,
+        "narHash": "sha256-Vf5Lh2IW1sebyIaVjnivel9c1U25lpsR+HHL/sR8DEM=",
         "owner": "mebaran",
         "repo": "mynixhome",
-        "rev": "4607c232633264e9872520061b246bd3c13a9f7f",
+        "rev": "0446eb87c7c06712a5062b6daf37046482a1905f",
         "type": "github"
       },
       "original": {
@@ -622,11 +622,11 @@
         "nixvim": "nixvim"
       },
       "locked": {
-        "lastModified": 1776611923,
-        "narHash": "sha256-MysJNGTvsgnmpOG/Hl91MSBPrD4+ct0kGlN6eb6RDIc=",
+        "lastModified": 1776684703,
+        "narHash": "sha256-KdaL7z3yxu0EWPvxfhWz2tVhJ13SrvhNmwEVx8dyPIM=",
         "owner": "mebaran",
         "repo": "mynixvim",
-        "rev": "c18a14b1a5f3b918b2dae1e757a1551cbdf051bc",
+        "rev": "3209f3e7620627180491ea6ed26eccca0370f7a4",
         "type": "github"
       },
       "original": {
