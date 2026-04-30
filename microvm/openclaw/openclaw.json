@@ -1,0 +1,24 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "@workspaceDir@",
+      "models": {
+        "openai-codex/gpt-5.4": {
+          "alias": "codex"
+        }
+      },
+      "model": {
+        "primary": "openai-codex/gpt-5.4"
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "controlUi": {
+      "allowedOrigins": [
+        "http://localhost:@gatewayPort@",
+        "http://127.0.0.1:@gatewayPort@"
+      ]
+    }
+  }
+}

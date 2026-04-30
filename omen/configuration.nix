@@ -73,7 +73,10 @@ in {
     };
   };
 
-  nix.settings.experimental-features = ["nix-command" "flakes"];
+  nix.settings = {
+    experimental-features = ["nix-command" "flakes"];
+    trusted-users = ["root" "mebaran"];
+  };
 
   networking.hostName = "omen"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
@@ -84,6 +87,10 @@ in {
 
   # Enable networking
   networking.networkmanager.enable = true;
+  # The host's real connectivity is managed by NetworkManager. `systemd-networkd`
+  # is only present for the MicroVM bridge, so its global wait-online job just
+  # adds a two minute timeout during rebuilds.
+  systemd.network.wait-online.enable = false;
 
   # Set your time zone.
   time.timeZone = "America/Los_Angeles";
