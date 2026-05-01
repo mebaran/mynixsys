@@ -33,6 +33,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    hermes = {
+      url = "github:NousResearch/hermes-agent";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Home Manager flake from your GitHub repo
     mynixhome = {
       url = "github:mebaran/mynixhome";
@@ -49,18 +54,51 @@
     niri,
     microvm,
     llm-agents,
+    hermes,
+    self,
     ...
   }: let
     forAllSystems = nixpkgs.lib.genAttrs ["x86_64-linux"];
+    mkHermesVm = system:
+      nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [
+          microvm.nixosModules.microvm
+          hermes.nixosModules.default
+          ./microvm/hermes-guest.nix
+        ];
+      };
+    mkHermesRunner = system:
+      self.nixosConfigurations."${system}-hermes-vm".config.microvm.runner.cloud-hypervisor;
+    mkHermesApp = runner: {
+      type = "app";
+      program = "${runner}/bin/microvm-run";
+    };
   in {
     formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
 
+    packages = forAllSystems (system: let
+      hermesRunner = mkHermesRunner system;
+    in {
+      default = hermesRunner;
+      hermes-vm = hermesRunner;
+    });
+
+    apps = forAllSystems (system: let
+      hermesRunner = mkHermesRunner system;
+    in {
+      default = mkHermesApp hermesRunner;
+      hermes-vm = mkHermesApp hermesRunner;
+    });
+
     homeConfigurations = mynixhome.homeConfigurations;
     nixosConfigurations = {
+      x86_64-linux-hermes-vm = mkHermesVm "x86_64-linux";
+
       nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit llm-agents microvm;
+          inherit hermes llm-agents microvm;
         };
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
@@ -79,7 +117,7 @@
       omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit llm-agents microvm;
+          inherit hermes llm-agents microvm;
         };
         modules = [
           determinate.nixosModules.default
@@ -90,7 +128,14 @@
           ./common/nvidia.nix
           ./common/desktop.nix
           ./omen/configuration.nix
-          ./microvm/openclaw-microvm.nix
+          ./microvm/hermes-microvm.nix
+          # ./microvm/openclaw-microvm.nix
+          {
+            services.hermesMicrovm = {
+              enable = true;
+              autostart = true;
+            };
+          }
         ];
       };
     };
