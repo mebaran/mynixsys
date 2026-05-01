@@ -45,10 +45,6 @@ jobs:
           branch: update-mynixhome-input
           delete-branch: true
 
-      - name: Wait before merge
-        if: steps.create-pr.outputs.pull-request-number
-        run: sleep 1800
-
       - name: Merge PR immediately
         if: steps.create-pr.outputs.pull-request-number
         run: |
