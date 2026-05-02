@@ -1,9 +1,13 @@
-{ config, lib, pkgs, hermes, ... }:
-
-let
-  cfg = config.services.hermesMicrovm;
-in
 {
+  config,
+  lib,
+  pkgs,
+  hermes,
+  llm-agents,
+  ...
+}: let
+  cfg = config.services.hermesMicrovm;
+in {
   options.services.hermesMicrovm = {
     enable = lib.mkEnableOption "Hermes Agent MicroVM service";
 
@@ -74,11 +78,7 @@ in
 
     systemd.network.networks."10-${cfg.bridgeName}" = {
       matchConfig.Name = cfg.bridgeName;
-      addresses = [
-        {
-          addressConfig.Address = cfg.hostAddress;
-        }
-      ];
+      address = [cfg.hostAddress];
       networkConfig = {
         DHCPServer = true;
         IPv6SendRA = true;
@@ -93,13 +93,13 @@ in
       linkConfig.RequiredForOnline = "no";
     };
 
-    networking.firewall.allowedUDPPorts = [ 67 ];
+    networking.firewall.allowedUDPPorts = [67];
 
     networking.nat =
       {
         enable = true;
         enableIPv6 = true;
-        internalInterfaces = [ cfg.bridgeName ];
+        internalInterfaces = [cfg.bridgeName];
       }
       // lib.optionalAttrs (cfg.externalInterface != null) {
         externalInterface = cfg.externalInterface;
@@ -107,7 +107,7 @@ in
 
     systemd.services.hermes-microvm-ssh-keygen = {
       description = "Generate host-side SSH credentials for the Hermes MicroVM";
-      wantedBy = [ "microvms.target" ];
+      wantedBy = ["microvms.target"];
       before = [
         "microvm@hermes.service"
         "microvm-virtiofsd@hermes.service"
@@ -129,28 +129,41 @@ in
         fi
 
         install -m 0644 /var/lib/hermes-agent/host.pub /var/lib/hermes-agent/authorized_keys.d/host.pub
+        chown root:users /var/lib/hermes-agent/host
+        chown root:root /var/lib/hermes-agent/host.pub
+        chmod 0640 /var/lib/hermes-agent/host
       '';
     };
 
     systemd.services."microvm@hermes" = {
-      after = [ "hermes-microvm-ssh-keygen.service" ];
-      requires = [ "hermes-microvm-ssh-keygen.service" ];
+      after = ["hermes-microvm-ssh-keygen.service"];
+      requires = ["hermes-microvm-ssh-keygen.service"];
     };
 
     systemd.services."microvm-virtiofsd@hermes" = {
-      after = [ "hermes-microvm-ssh-keygen.service" ];
-      requires = [ "hermes-microvm-ssh-keygen.service" ];
+      after = ["hermes-microvm-ssh-keygen.service"];
+      requires = ["hermes-microvm-ssh-keygen.service"];
     };
 
     environment.systemPackages = [
       (pkgs.writeShellApplication {
         name = "ssh-hermes-microvm";
-        runtimeInputs = [ pkgs.openssh ];
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.openssh
+        ];
         text = ''
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
+
           exec ssh \
-            -o IdentityFile=/var/lib/hermes-agent/host \
+            -F /dev/null \
+            -o IdentityFile="$tmpdir/host" \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$tmpdir/known_hosts" \
             root@${cfg.guestAddress} \
             "$@"
         '';
@@ -159,6 +172,9 @@ in
 
     microvm.vms.hermes = {
       inherit (cfg) autostart;
+      specialArgs = {
+        inherit llm-agents;
+      };
       config = {
         imports = [
           hermes.nixosModules.default
@@ -173,7 +189,7 @@ in
         };
         systemd.network.networks."20-uplink" = {
           matchConfig.Name = "eth0";
-          address = [ "${cfg.guestAddress}/24" ];
+          address = ["${cfg.guestAddress}/24"];
           routes = [
             {
               Gateway = cfg.gatewayAddress;

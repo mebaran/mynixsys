@@ -62,6 +62,9 @@
     mkHermesVm = system:
       nixpkgs.lib.nixosSystem {
         inherit system;
+        specialArgs = {
+          inherit llm-agents;
+        };
         modules = [
           microvm.nixosModules.microvm
           hermes.nixosModules.default

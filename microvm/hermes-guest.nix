@@ -1,14 +1,32 @@
-{ lib, pkgs, ... }:
-
-let
+{
+  lib,
+  pkgs,
+  llm-agents,
+  ...
+}: let
   hostAuthorizedKeysDir = "/var/lib/hermes-agent/authorized_keys.d";
   guestAuthorizedKeysDir = "/run/host-authorized-keys";
-in
-{
+  llmPkgs = llm-agents.packages.${pkgs.stdenv.hostPlatform.system};
+  sysPkgs = with pkgs; [
+    curl
+    duckdb
+    bun
+    gh
+    git
+    htop
+    jq
+    uv
+    vim
+  ];
+  aiPkgs = with llmPkgs; [
+    codex
+    opencode
+  ];
+in {
   system.stateVersion = "25.05";
 
   networking.hostName = "hermes-vm";
-  networking.firewall.allowedTCPPorts = [ 22 ];
+  networking.firewall.allowedTCPPorts = [22];
   networking.useNetworkd = true;
 
   systemd.network.enable = true;
@@ -30,17 +48,7 @@ in
     };
   };
 
-  environment.systemPackages = with pkgs; [
-    curl
-    duckdb
-    bun
-    gh
-    git
-    htop
-    jq
-    uv
-    vim
-  ];
+  environment.systemPackages = sysPkgs ++ aiPkgs;
 
   microvm = {
     hypervisor = lib.mkDefault "cloud-hypervisor";
@@ -80,9 +88,9 @@ in
 
   systemd.services.install-host-authorized-keys = {
     description = "Install SSH authorized keys from the host share";
-    wantedBy = [ "multi-user.target" ];
-    before = [ "sshd.service" ];
-    after = [ "local-fs.target" ];
+    wantedBy = ["multi-user.target"];
+    before = ["sshd.service"];
+    after = ["local-fs.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -108,16 +116,10 @@ in
 
   services.hermes-agent = {
     enable = true;
-    environmentFiles = [ "/var/lib/hermes/hermes.env" ];
+    environmentFiles = ["/var/lib/hermes/hermes.env"];
     settings = {
       terminal.backend = "local";
-      toolsets = [ "all" ];
-    };
-    documents = {
-      "SOUL.md" = ''
-        You are Hermes running inside a dedicated MicroVM.
-        Persist useful long-term context and operate from this isolated environment.
-      '';
+      toolsets = ["all"];
     };
   };
 }
