@@ -53,9 +53,239 @@ in {
       example = "enp1s0";
       description = "Optional uplink interface used for NAT from the bridge to the outside network.";
     };
+
+    profiles = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule ({name, ...}: {
+        options = {
+          environmentDirectory = lib.mkOption {
+            type = lib.types.path;
+            default = "/var/lib/hermes-agent/profiles/${name}/env.d";
+            description = ''
+              Host-managed directory of .env files for the ${name} Hermes profile.
+            '';
+          };
+
+          homeDirectory = lib.mkOption {
+            type = lib.types.str;
+            default = "/var/lib/hermes/profiles/${name}";
+            description = ''
+              Guest-side HERMES_HOME for this profile. Use /var/lib/hermes for
+              the orchestrator profile that owns the shared Kanban board.
+            '';
+          };
+
+          model = lib.mkOption {
+            type = lib.types.attrs;
+            default = {
+              provider = "openai-codex";
+              default = "gpt-5.3-codex";
+            };
+            example = {
+              provider = "openrouter";
+              default = "anthropic/claude-sonnet-4.6";
+            };
+            description = ''
+              Hermes model configuration written to this profile's config.yaml.
+              Secrets still belong in the profile environmentDirectory.
+            '';
+          };
+
+          externalSkillDirectories = lib.mkOption {
+            type = lib.types.listOf lib.types.path;
+            default = [];
+            example = [./hermes-skills/common];
+            description = ''
+              Baked Hermes skill directories exposed to this profile through
+              skills.external_dirs in config.yaml.
+            '';
+          };
+
+          workspaceDirectories = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [];
+            example = [
+              "repos"
+              "requests"
+              "scratch"
+            ];
+            description = ''
+              Generic subdirectories created under this profile's workspace.
+              Keep project and repository names out of Nix; create or clone them
+              at runtime inside these workspace directories.
+            '';
+          };
+
+          apiServer = {
+            enable = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Enable the Hermes API server gateway for this profile.";
+            };
+
+            host = lib.mkOption {
+              type = lib.types.str;
+              default = "0.0.0.0";
+              description = "Address the Hermes API server binds inside the guest.";
+            };
+
+            port = lib.mkOption {
+              type = lib.types.port;
+              description = "TCP port for this profile's Hermes API server.";
+            };
+
+            openFirewall = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Open this profile's API server port in the guest firewall.";
+            };
+          };
+
+          webhook = {
+            port = lib.mkOption {
+              type = lib.types.port;
+              description = "TCP port reserved for this profile's generic webhook gateway.";
+            };
+
+            openFirewall = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Open this profile's webhook port in the guest firewall.";
+            };
+          };
+        };
+      }));
+      default = {};
+      description = "Named Hermes profiles to run inside the MicroVM.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
+    environment.systemPackages = let
+      sshHermesMicrovm = pkgs.writeShellApplication {
+        name = "ssh-hermes-microvm";
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.openssh
+        ];
+        text = ''
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
+
+          exec ssh \
+            -F /dev/null \
+            -o IdentityFile="$tmpdir/host" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$tmpdir/known_hosts" \
+            root@${cfg.guestAddress} \
+            "$@"
+        '';
+      };
+
+      codexProfileCases = lib.concatStringsSep "\n" (lib.mapAttrsToList (name: profile: ''
+          ${lib.escapeShellArg name})
+            home=${lib.escapeShellArg profile.homeDirectory}
+            ;;
+        '')
+        cfg.profiles);
+
+      hermesCodexLogin = pkgs.writeShellApplication {
+        name = "hermes-codex-login";
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.openssh
+        ];
+        text = ''
+          profile="''${1:-orchestrator}"
+          mode="''${2:-login}"
+
+          case "$profile" in
+          ${codexProfileCases}
+          *)
+            echo "Unknown Hermes profile: $profile" >&2
+            echo "Known profiles: ${lib.concatStringsSep " " (lib.attrNames cfg.profiles)}" >&2
+            exit 2
+            ;;
+          esac
+
+          case "$mode" in
+            login)
+              codex_args="login --device-auth"
+              ;;
+            status)
+              codex_args="login status"
+              ;;
+            logout)
+              codex_args="logout"
+              ;;
+            *)
+              echo "Usage: hermes-codex-login [${lib.concatStringsSep "|" (lib.attrNames cfg.profiles)}] [login|status|logout]" >&2
+              exit 2
+              ;;
+          esac
+
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
+
+          codex_home="$home/codex"
+          user_home="$home/home"
+          remote_inner="CODEX_HOME=$codex_home HOME=$user_home exec codex $codex_args"
+          quoted_codex_home="$(printf '%q' "$codex_home")"
+          quoted_inner="$(printf '%q' "$remote_inner")"
+          remote_command="install -d -m 0750 -o hermes -g hermes $quoted_codex_home && su -s /bin/sh hermes -c $quoted_inner"
+
+          exec ssh \
+            -t \
+            -F /dev/null \
+            -o IdentityFile="$tmpdir/host" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$tmpdir/known_hosts" \
+            root@${cfg.guestAddress} \
+            "$remote_command"
+        '';
+      };
+
+      profileTuiWrappers = lib.mapAttrsToList (name: profile: let
+        hermesArgs = ["hermes" "--tui"];
+        tuiCommand = "cd ${profile.homeDirectory}/workspace && HERMES_HOME=${profile.homeDirectory} CODEX_HOME=${profile.homeDirectory}/codex exec ${lib.escapeShellArgs hermesArgs}";
+        remoteCommand = "su -s /bin/sh hermes -c ${lib.escapeShellArg tuiCommand}";
+      in
+        pkgs.writeShellApplication {
+          name = "hermes-${name}";
+          runtimeInputs = [
+            pkgs.coreutils
+            pkgs.openssh
+          ];
+          text = ''
+            tmpdir="$(mktemp -d)"
+            trap 'rm -rf "$tmpdir"' EXIT
+
+            install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
+
+            exec ssh \
+              -t \
+              -F /dev/null \
+              -o IdentityFile="$tmpdir/host" \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              -o UserKnownHostsFile="$tmpdir/known_hosts" \
+              root@${cfg.guestAddress} \
+              ${lib.escapeShellArg remoteCommand}
+          '';
+        })
+      cfg.profiles;
+    in
+      [
+        sshHermesMicrovm
+        hermesCodexLogin
+      ]
+      ++ profileTuiWrappers;
+
     networking.networkmanager.unmanaged = [
       "interface-name:${cfg.bridgeName}"
       "interface-name:vm-hermes"
@@ -64,10 +294,15 @@ in {
     networking.useNetworkd = true;
     systemd.network.enable = true;
 
-    systemd.tmpfiles.rules = [
-      "d /var/lib/hermes-agent 0755 root root - -"
-      "d /var/lib/hermes-agent/authorized_keys.d 0755 root root - -"
-    ];
+    systemd.tmpfiles.rules =
+      [
+        "d /var/lib/hermes-agent 0755 root root - -"
+        "d /var/lib/hermes-agent/authorized_keys.d 0755 root root - -"
+      ]
+      ++ lib.concatMap (profile: [
+        "d ${builtins.dirOf profile.environmentDirectory} 0755 root root - -"
+        "d ${profile.environmentDirectory} 0755 root root - -"
+      ]) (lib.attrValues cfg.profiles);
 
     systemd.network.netdevs."10-${cfg.bridgeName}" = {
       netdevConfig = {
@@ -145,41 +380,26 @@ in {
       requires = ["hermes-microvm-ssh-keygen.service"];
     };
 
-    environment.systemPackages = [
-      (pkgs.writeShellApplication {
-        name = "ssh-hermes-microvm";
-        runtimeInputs = [
-          pkgs.coreutils
-          pkgs.openssh
-        ];
-        text = ''
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-
-          install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
-
-          exec ssh \
-            -F /dev/null \
-            -o IdentityFile="$tmpdir/host" \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=accept-new \
-            -o UserKnownHostsFile="$tmpdir/known_hosts" \
-            root@${cfg.guestAddress} \
-            "$@"
-        '';
-      })
-    ];
-
     microvm.vms.hermes = {
       inherit (cfg) autostart;
       specialArgs = {
         inherit llm-agents;
+        hermesProfiles = cfg.profiles;
       };
       config = {
         imports = [
           hermes.nixosModules.default
           ./hermes-guest.nix
         ];
+
+        microvm.shares =
+          lib.mapAttrsToList (name: profile: {
+            proto = "virtiofs";
+            tag = "host-hermes-env-${name}";
+            source = profile.environmentDirectory;
+            mountPoint = "/run/host-hermes-profiles/${name}/env.d";
+          })
+          cfg.profiles;
 
         networking.useDHCP = lib.mkForce false;
         networking.usePredictableInterfaceNames = false;

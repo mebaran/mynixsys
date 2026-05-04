@@ -58,12 +58,78 @@
     self,
     ...
   }: let
-    forAllSystems = nixpkgs.lib.genAttrs ["x86_64-linux"];
+    lib = nixpkgs.lib;
+    forAllSystems = lib.genAttrs ["x86_64-linux"];
+    mkHermesProfile = name: {
+      roleSkillDirectories,
+      portOffset,
+      homeDirectory ? "/var/lib/hermes/profiles/${name}",
+      model ? {
+        provider = "openai-codex";
+        default = "gpt-5.5";
+      },
+      workspaceDirectories ? [],
+    }: {
+      environmentDirectory = "/var/lib/hermes-agent/profiles/${name}/env.d";
+      inherit homeDirectory;
+      inherit model;
+      externalSkillDirectories =
+        [
+          ./microvm/hermes-skills/common
+        ]
+        ++ roleSkillDirectories;
+      inherit workspaceDirectories;
+      apiServer = {
+        enable = true;
+        host = "0.0.0.0";
+        port = 8800 + portOffset;
+        openFirewall = true;
+      };
+      webhook = {
+        port = 8900 + portOffset;
+        openFirewall = true;
+      };
+    };
+    hermesProfiles = {
+      orchestrator = mkHermesProfile "orchestrator" {
+        roleSkillDirectories = [
+          ./microvm/hermes-skills/orchestrator
+        ];
+        portOffset = 0;
+        homeDirectory = "/var/lib/hermes";
+        workspaceDirectories = [
+          "board"
+          "requests"
+          "scratch"
+        ];
+      };
+      pa = mkHermesProfile "pa" {
+        roleSkillDirectories = [
+          ./microvm/hermes-skills/pa
+        ];
+        portOffset = 1;
+        workspaceDirectories = [
+          "scratch"
+          "requests"
+        ];
+      };
+      coder = mkHermesProfile "coder" {
+        roleSkillDirectories = [
+          ./microvm/hermes-skills/coder
+        ];
+        portOffset = 2;
+        workspaceDirectories = [
+          "repos"
+          "requests"
+          "scratch"
+        ];
+      };
+    };
     mkHermesVm = system:
       nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit llm-agents;
+          inherit llm-agents hermesProfiles;
         };
         modules = [
           microvm.nixosModules.microvm
@@ -137,6 +203,7 @@
             services.hermesMicrovm = {
               enable = true;
               autostart = true;
+              profiles = hermesProfiles;
             };
           }
         ];

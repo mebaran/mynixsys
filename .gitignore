@@ -1,3 +1,17 @@
+# Nix / flakes
 /result
 /result-*
+/.direnv/
+/.devenv/
+/.nix-profile
+/.nix-defexpr
+
+# Codex local workspace state
 /.codex
+/.codex/
+/.codex-*/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
