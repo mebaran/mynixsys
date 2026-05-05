@@ -94,5 +94,7 @@ If you prefer to use the upstream optional skill instead, replace the baked
 copy with `hermes skills install official/communication/one-three-one-rule`
 inside each profile home.
 
-After changing host env files, restart the VM profile service so `host.env` is
-regenerated and the gateway process receives the new environment.
+After changing host env files, restart the VM profile service so `host.env` and
+the active profile `.env` are regenerated. The generated `.env` is the
+concatenation of `host.env` followed by the profile-local `local.env`, so
+guest-side edits and temporary overrides belong in `local.env`.

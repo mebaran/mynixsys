@@ -99,6 +99,10 @@ in {
   };
 
   environment.systemPackages = sysPkgs ++ aiPkgs ++ [hermesPackage];
+  environment.variables = {
+    HERMES_HOME = "/var/lib/hermes";
+    HERMES_KANBAN_HOME = "/var/lib/hermes";
+  };
 
   microvm = {
     hypervisor = lib.mkDefault "cloud-hypervisor";
@@ -132,6 +136,7 @@ in {
   systemd.tmpfiles.rules =
     [
       "d /var/lib/hermes 0750 hermes hermes - -"
+      "d /var/lib/hermes/profiles 0750 hermes hermes - -"
       "d /root/.ssh 0700 root root - -"
     ]
     ++ lib.concatMap (name: let
@@ -145,6 +150,7 @@ in {
         "d ${home}/logs 0750 hermes hermes - -"
         "f ${home}/.env 0600 hermes hermes - -"
         "f ${home}/host.env 0600 hermes hermes - -"
+        "f ${home}/local.env 0600 hermes hermes - -"
       ]
       ++ lib.map (dir: "d ${home}/workspace/${dir} 0750 hermes hermes - -") hermesProfiles.${name}.workspaceDirectories)
     profileNames;
@@ -202,22 +208,30 @@ in {
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
           ${lib.concatMapStringsSep "\n" (dir: "install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace/${dir}"}") hermesProfiles.${name}.workspaceDirectories}
           install -m 0640 -o hermes -g hermes ${profileConfigFile name profile} ${lib.escapeShellArg "${home}/config.yaml"}
-          if [ ! -e ${lib.escapeShellArg "${home}/.env"} ]; then
-            install -m 0600 -o hermes -g hermes /dev/null ${lib.escapeShellArg "${home}/.env"}
-          fi
 
-          tmp="$(mktemp)"
-          trap 'rm -f "$tmp"' EXIT
+          host_tmp="$(mktemp)"
+          env_tmp="$(mktemp)"
+          trap 'rm -f "$host_tmp" "$env_tmp"' EXIT
 
           if [ -d ${lib.escapeShellArg envDir} ]; then
             find ${lib.escapeShellArg envDir} -maxdepth 1 -type f -name '*.env' -print0 \
               | sort -z \
-              | xargs -0r cat -- > "$tmp"
+              | xargs -0r cat -- > "$host_tmp"
           else
-            : > "$tmp"
+            : > "$host_tmp"
           fi
 
-          install -m 0600 -o hermes -g hermes "$tmp" ${lib.escapeShellArg "${home}/host.env"}
+          install -m 0600 -o hermes -g hermes "$host_tmp" ${lib.escapeShellArg "${home}/host.env"}
+          if [ ! -e ${lib.escapeShellArg "${home}/local.env"} ]; then
+            install -m 0600 -o hermes -g hermes /dev/null ${lib.escapeShellArg "${home}/local.env"}
+          fi
+
+          {
+            cat "$host_tmp"
+            printf '\n'
+            cat ${lib.escapeShellArg "${home}/local.env"}
+          } > "$env_tmp"
+          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
         '';
       })
     hermesProfiles
@@ -235,6 +249,7 @@ in {
         requires = ["install-host-hermes-env-${name}.service"];
         environment = {
           HERMES_HOME = home;
+          HERMES_KANBAN_HOME = "/var/lib/hermes";
           CODEX_HOME = "${home}/codex";
           HOME = "${home}/home";
           API_SERVER_ENABLED = lib.boolToString profile.apiServer.enable;
@@ -256,7 +271,6 @@ in {
           WorkingDirectory = "${home}/workspace";
           EnvironmentFile = [
             "${home}/.env"
-            "${home}/host.env"
           ];
           ExecStart = "${lib.getExe hermesPackage} gateway run --replace";
           Restart = "always";
