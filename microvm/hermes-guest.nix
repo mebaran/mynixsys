@@ -95,6 +95,7 @@ in {
     group = "hermes";
     home = "/var/lib/hermes";
     createHome = true;
+    shell = pkgs.bashInteractive;
   };
 
   environment.systemPackages = sysPkgs ++ aiPkgs ++ [hermesPackage];
@@ -201,6 +202,9 @@ in {
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
           ${lib.concatMapStringsSep "\n" (dir: "install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace/${dir}"}") hermesProfiles.${name}.workspaceDirectories}
           install -m 0640 -o hermes -g hermes ${profileConfigFile name profile} ${lib.escapeShellArg "${home}/config.yaml"}
+          if [ ! -e ${lib.escapeShellArg "${home}/.env"} ]; then
+            install -m 0600 -o hermes -g hermes /dev/null ${lib.escapeShellArg "${home}/.env"}
+          fi
 
           tmp="$(mktemp)"
           trap 'rm -f "$tmp"' EXIT
