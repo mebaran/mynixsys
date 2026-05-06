@@ -157,9 +157,34 @@ in {
       default = {};
       description = "Named Hermes profiles to run inside the MicroVM.";
     };
+
+    hostProxy = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Proxy Hermes profile ports from the host to the MicroVM.";
+      };
+
+      bindAddress = lib.mkOption {
+        type = lib.types.str;
+        default = "0.0.0.0";
+        description = "Host address used by the Hermes proxy sockets.";
+      };
+
+      openFirewall = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Open proxied Hermes profile ports in the host firewall.";
+      };
+    };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = lib.mkIf cfg.enable (let
+    proxiedProfiles = lib.filterAttrs (_: profile: profile.apiServer.enable) cfg.profiles;
+    proxiedApiPorts = lib.mapAttrsToList (_: profile: profile.apiServer.port) proxiedProfiles;
+    proxiedWebhookPorts = lib.mapAttrsToList (_: profile: profile.webhook.port) cfg.profiles;
+    proxiedPorts = lib.unique (proxiedApiPorts ++ proxiedWebhookPorts);
+  in {
     environment.systemPackages = let
       sshHermesMicrovm = pkgs.writeShellApplication {
         name = "ssh-hermes-microvm";
@@ -329,6 +354,33 @@ in {
     };
 
     networking.firewall.allowedUDPPorts = [67];
+    networking.firewall.allowedTCPPorts = lib.mkIf (cfg.hostProxy.enable && cfg.hostProxy.openFirewall) proxiedPorts;
+
+    systemd.sockets =
+      lib.mkIf cfg.hostProxy.enable
+      (lib.mkMerge [
+        (lib.mapAttrs' (name: profile:
+          lib.nameValuePair "hermes-${name}-api-proxy" {
+            description = "Proxy Hermes ${name} API traffic to the MicroVM";
+            wantedBy = ["sockets.target"];
+            listenStreams = ["${cfg.hostProxy.bindAddress}:${toString profile.apiServer.port}"];
+            socketConfig = {
+              NoDelay = true;
+            };
+          })
+        proxiedProfiles)
+
+        (lib.mapAttrs' (name: profile:
+          lib.nameValuePair "hermes-${name}-webhook-proxy" {
+            description = "Proxy Hermes ${name} webhook traffic to the MicroVM";
+            wantedBy = ["sockets.target"];
+            listenStreams = ["${cfg.hostProxy.bindAddress}:${toString profile.webhook.port}"];
+            socketConfig = {
+              NoDelay = true;
+            };
+          })
+        cfg.profiles)
+      ]);
 
     networking.nat =
       {
@@ -340,45 +392,86 @@ in {
         externalInterface = cfg.externalInterface;
       };
 
-    systemd.services.hermes-microvm-ssh-keygen = {
-      description = "Generate host-side SSH credentials for the Hermes MicroVM";
-      wantedBy = ["microvms.target"];
-      before = [
-        "microvm@hermes.service"
-        "microvm-virtiofsd@hermes.service"
-      ];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-      script = ''
-        install -d -m 0755 /var/lib/hermes-agent/authorized_keys.d
+    systemd.services = lib.mkMerge [
+      (lib.mkIf cfg.hostProxy.enable
+        (lib.mkMerge [
+          (lib.mapAttrs' (name: profile:
+            lib.nameValuePair "hermes-${name}-api-proxy" {
+              description = "Proxy Hermes ${name} API traffic to the MicroVM";
+              after = [
+                "microvm@hermes.service"
+                "network-online.target"
+              ];
+              requires = ["microvm@hermes.service"];
+              wants = ["network-online.target"];
+              serviceConfig = {
+                ExecStart = "${config.systemd.package}/lib/systemd/systemd-socket-proxyd ${cfg.guestAddress}:${toString profile.apiServer.port}";
+                DynamicUser = true;
+                PrivateTmp = true;
+              };
+            })
+          proxiedProfiles)
 
-        if [ ! -s /var/lib/hermes-agent/host ]; then
-          ${lib.getExe' pkgs.openssh "ssh-keygen"} \
-            -q \
-            -t ed25519 \
-            -N "" \
-            -C "hermes@${config.networking.hostName}" \
-            -f /var/lib/hermes-agent/host
-        fi
+          (lib.mapAttrs' (name: profile:
+            lib.nameValuePair "hermes-${name}-webhook-proxy" {
+              description = "Proxy Hermes ${name} webhook traffic to the MicroVM";
+              after = [
+                "microvm@hermes.service"
+                "network-online.target"
+              ];
+              requires = ["microvm@hermes.service"];
+              wants = ["network-online.target"];
+              serviceConfig = {
+                ExecStart = "${config.systemd.package}/lib/systemd/systemd-socket-proxyd ${cfg.guestAddress}:${toString profile.webhook.port}";
+                DynamicUser = true;
+                PrivateTmp = true;
+              };
+            })
+          cfg.profiles)
+        ]))
 
-        install -m 0644 /var/lib/hermes-agent/host.pub /var/lib/hermes-agent/authorized_keys.d/host.pub
-        chown root:users /var/lib/hermes-agent/host
-        chown root:root /var/lib/hermes-agent/host.pub
-        chmod 0640 /var/lib/hermes-agent/host
-      '';
-    };
+      {
+        hermes-microvm-ssh-keygen = {
+          description = "Generate host-side SSH credentials for the Hermes MicroVM";
+          wantedBy = ["microvms.target"];
+          before = [
+            "microvm@hermes.service"
+            "microvm-virtiofsd@hermes.service"
+          ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          script = ''
+            install -d -m 0755 /var/lib/hermes-agent/authorized_keys.d
 
-    systemd.services."microvm@hermes" = {
-      after = ["hermes-microvm-ssh-keygen.service"];
-      requires = ["hermes-microvm-ssh-keygen.service"];
-    };
+            if [ ! -s /var/lib/hermes-agent/host ]; then
+              ${lib.getExe' pkgs.openssh "ssh-keygen"} \
+                -q \
+                -t ed25519 \
+                -N "" \
+                -C "hermes@${config.networking.hostName}" \
+                -f /var/lib/hermes-agent/host
+            fi
 
-    systemd.services."microvm-virtiofsd@hermes" = {
-      after = ["hermes-microvm-ssh-keygen.service"];
-      requires = ["hermes-microvm-ssh-keygen.service"];
-    };
+            install -m 0644 /var/lib/hermes-agent/host.pub /var/lib/hermes-agent/authorized_keys.d/host.pub
+            chown root:users /var/lib/hermes-agent/host
+            chown root:root /var/lib/hermes-agent/host.pub
+            chmod 0640 /var/lib/hermes-agent/host
+          '';
+        };
+
+        "microvm@hermes" = {
+          after = ["hermes-microvm-ssh-keygen.service"];
+          requires = ["hermes-microvm-ssh-keygen.service"];
+        };
+
+        "microvm-virtiofsd@hermes" = {
+          after = ["hermes-microvm-ssh-keygen.service"];
+          requires = ["hermes-microvm-ssh-keygen.service"];
+        };
+      }
+    ];
 
     microvm.vms.hermes = {
       inherit (cfg) autostart;
@@ -430,5 +523,5 @@ in {
         ];
       };
     };
-  };
+  });
 }
