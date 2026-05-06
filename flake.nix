@@ -1,5 +1,5 @@
 {
-  description = "My NixOS WSL Flake Configuration";
+  description = "My NixOS systems, containers, and service configuration";
 
   nixConfig = {
     extra-substituters = ["https://cache.numtide.com"];
@@ -23,18 +23,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    microvm = {
-      url = "github:microvm-nix/microvm.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     llm-agents = {
       url = "github:numtide/llm-agents.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     hermes = {
-      url = "github:NousResearch/hermes-agent/v2026.4.30";
+      url = "github:NousResearch/hermes-agent/main";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -52,16 +47,13 @@
     determinate,
     mynixhome,
     niri,
-    microvm,
     llm-agents,
     hermes,
-    self,
     ...
   }: let
     lib = nixpkgs.lib;
     forAllSystems = lib.genAttrs ["x86_64-linux"];
     mkHermesProfile = name: {
-      roleSkillDirectories,
       portOffset,
       homeDirectory ? "/var/lib/hermes/profiles/${name}",
       model ? {
@@ -73,11 +65,7 @@
       environmentDirectory = "/var/lib/hermes-agent/profiles/${name}/env.d";
       inherit homeDirectory;
       inherit model;
-      externalSkillDirectories =
-        [
-          ./microvm/hermes-skills/common
-        ]
-        ++ roleSkillDirectories;
+      externalSkillDirectories = [];
       inherit workspaceDirectories;
       apiServer = {
         enable = true;
@@ -89,12 +77,14 @@
         port = 8900 + portOffset;
         openFirewall = true;
       };
+      dashboard = {
+        enable = true;
+        port = 9000 + portOffset;
+        openFirewall = true;
+      };
     };
     hermesProfiles = {
       orchestrator = mkHermesProfile "orchestrator" {
-        roleSkillDirectories = [
-          ./microvm/hermes-skills/orchestrator
-        ];
         portOffset = 0;
         homeDirectory = "/var/lib/hermes";
         workspaceDirectories = [
@@ -104,9 +94,6 @@
         ];
       };
       pa = mkHermesProfile "pa" {
-        roleSkillDirectories = [
-          ./microvm/hermes-skills/pa
-        ];
         portOffset = 1;
         workspaceDirectories = [
           "scratch"
@@ -114,9 +101,6 @@
         ];
       };
       coder = mkHermesProfile "coder" {
-        roleSkillDirectories = [
-          ./microvm/hermes-skills/coder
-        ];
         portOffset = 2;
         workspaceDirectories = [
           "repos"
@@ -125,49 +109,15 @@
         ];
       };
     };
-    mkHermesVm = system:
-      nixpkgs.lib.nixosSystem {
-        inherit system;
-        specialArgs = {
-          inherit llm-agents hermesProfiles;
-        };
-        modules = [
-          microvm.nixosModules.microvm
-          hermes.nixosModules.default
-          ./microvm/hermes-guest.nix
-        ];
-      };
-    mkHermesRunner = system:
-      self.nixosConfigurations."${system}-hermes-vm".config.microvm.runner.cloud-hypervisor;
-    mkHermesApp = runner: {
-      type = "app";
-      program = "${runner}/bin/microvm-run";
-    };
   in {
     formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
 
-    packages = forAllSystems (system: let
-      hermesRunner = mkHermesRunner system;
-    in {
-      default = hermesRunner;
-      hermes-vm = hermesRunner;
-    });
-
-    apps = forAllSystems (system: let
-      hermesRunner = mkHermesRunner system;
-    in {
-      default = mkHermesApp hermesRunner;
-      hermes-vm = mkHermesApp hermesRunner;
-    });
-
     homeConfigurations = mynixhome.homeConfigurations;
     nixosConfigurations = {
-      x86_64-linux-hermes-vm = mkHermesVm "x86_64-linux";
-
       nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents microvm;
+          inherit hermes llm-agents;
         };
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
@@ -186,21 +136,20 @@
       omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents microvm;
+          inherit hermes llm-agents;
         };
         modules = [
           determinate.nixosModules.default
           niri.nixosModules.niri
-          microvm.nixosModules.host
 
           ./common
           ./common/nvidia.nix
           ./common/desktop.nix
           ./omen/configuration.nix
-          ./microvm/hermes-microvm.nix
+          ./containers/hermes.nix
           # ./microvm/openclaw-microvm.nix
           {
-            services.hermesMicrovm = {
+            services.hermesContainer = {
               enable = true;
               autostart = true;
               profiles = hermesProfiles;
