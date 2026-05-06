@@ -113,8 +113,31 @@ in {
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.mebaran = {
     isNormalUser = true;
+    uid = 1000;
     description = "Mark Baran";
     extraGroups = ["networkmanager" "wheel"];
+    linger = true;
+  };
+
+  users.groups.hermes = {};
+  users.users.hermes = {
+    isSystemUser = true;
+    group = "hermes";
+    home = "/var/lib/hermes-podman";
+    createHome = true;
+    linger = true;
+    subUidRanges = [
+      {
+        startUid = 200000;
+        count = 65536;
+      }
+    ];
+    subGidRanges = [
+      {
+        startGid = 200000;
+        count = 65536;
+      }
+    ];
   };
 
   # Allow unfree packages

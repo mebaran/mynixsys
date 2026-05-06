@@ -70,9 +70,22 @@ Kanban database lives at `/var/lib/hermes/kanban.db`. The `pa` and `coder`
 profiles live under `/var/lib/hermes/profiles/` and can be used as Kanban
 assignees.
 
+At activation/service start, the live host env files are merged into both
+`$HERMES_HOME/.env` and `$HOME/.env`. For `orchestrator`, that means both
+`/var/lib/hermes/.env` and `/var/lib/hermes/home/.env`; the latter exists for
+tools that search relative to the Unix home directory.
+
 Codex auth is normally created by `hermes-codex-login <profile>` and stored
-under the profile-specific `CODEX_HOME`; it usually does not need an env var.
+in the profile-specific `HERMES_HOME/auth.json`; it usually does not need an
+env var. You can also run profile-scoped commands directly with
+`hermes-container <profile> hermes auth status openai-codex`.
 If you intentionally use API-key auth, set `OPENAI_API_KEY` in `00-model.env`.
+
+AWS config/auth for `orchestrator` and `coder` is managed with
+`hermes-aws-login <profile> configure` or `hermes-aws-login <profile> login`.
+Both run normal access-key based `aws configure`. If you use IAM Identity
+Center/SSO instead, use `sso-configure`, `sso-login`, and `sso-logout`.
+The AWS CLI state is stored under each profile-specific `HOME` in `.aws/`.
 
 Google Workspace Gmail/Calendar OAuth uses these guest-side files:
 

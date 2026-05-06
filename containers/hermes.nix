@@ -29,6 +29,15 @@ in {
       description = "Host directory mounted at /var/lib/hermes in the container.";
     };
 
+    podmanUser = lib.mkOption {
+      type = lib.types.str;
+      default = "root";
+      description = ''
+        Host user that owns the Podman container. Use a normal user for
+        rootless Podman; that user must have lingering enabled for autostart.
+      '';
+    };
+
     dashboard = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -176,6 +185,7 @@ in {
       hermesPackage
       llmPkgs.codex
       llmPkgs.opencode
+      pkgs.awscli2
       pkgs.bash
       pkgs.bun
       pkgs.cacert
@@ -218,7 +228,6 @@ in {
           export PATH=${lib.escapeShellArg path}
           export HERMES_HOME=${lib.escapeShellArg home}
           export HERMES_KANBAN_HOME=/var/lib/hermes
-          export CODEX_HOME=${lib.escapeShellArg "${home}/codex"}
           export HOME=${lib.escapeShellArg "${home}/home"}
           export API_SERVER_ENABLED=${lib.escapeShellArg (lib.boolToString profile.apiServer.enable)}
           export API_SERVER_HOST=${lib.escapeShellArg profile.apiServer.host}
@@ -227,7 +236,6 @@ in {
 
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg home}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/home"}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/codex"}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace"}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
           ${workspaceDirs}
@@ -261,6 +269,7 @@ in {
             cat ${lib.escapeShellArg "${home}/local.env"}
           } > "$env_tmp"
           install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
+          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/home/.env"}
 
           set -a
           . ${lib.escapeShellArg "${home}/.env"}
@@ -300,13 +309,11 @@ in {
           export PATH=${lib.escapeShellArg path}
           export HERMES_HOME=${lib.escapeShellArg home}
           export HERMES_KANBAN_HOME=/var/lib/hermes
-          export CODEX_HOME=${lib.escapeShellArg "${home}/codex"}
           export HOME=${lib.escapeShellArg "${home}/home"}
           export HERMES_DASHBOARD_TUI=1
 
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg home}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/home"}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/codex"}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace"}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
           ${workspaceDirs}
@@ -340,6 +347,7 @@ in {
             cat ${lib.escapeShellArg "${home}/local.env"}
           } > "$env_tmp"
           install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
+          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/home/.env"}
 
           set -a
             . ${lib.escapeShellArg "${home}/.env"}
@@ -388,6 +396,7 @@ in {
         init
         llmPkgs.codex
         llmPkgs.opencode
+        pkgs.awscli2
         pkgs.bash
         pkgs.bun
         pkgs.cacert
@@ -464,6 +473,7 @@ in {
       cfg.profiles;
 
     containerPorts = lib.map (port: "${toString port}:${toString port}") publishedPorts;
+    rootlessPodman = cfg.podmanUser != "root";
 
     dashboardProfile = cfg.profiles.${cfg.dashboard.profile};
     dashboardPort = dashboardProfile.dashboard.port;
@@ -474,8 +484,18 @@ in {
           ;;
       '')
       cfg.profiles);
+    awsLoginProfiles = lib.filter (name: lib.hasAttr name cfg.profiles) ["orchestrator" "coder"];
+    awsProfileCases = lib.concatStringsSep "\n" (map (name: ''
+        ${lib.escapeShellArg name})
+          home=${lib.escapeShellArg cfg.profiles.${name}.homeDirectory}
+          ;;
+      '')
+      awsLoginProfiles);
 
-    podmanExec = "${pkgs.podman}/bin/podman exec -it ${lib.escapeShellArg cfg.containerName}";
+    podmanExec =
+      if rootlessPodman
+      then "${config.security.wrapperDir}/sudo -H -u ${lib.escapeShellArg cfg.podmanUser} env \"XDG_RUNTIME_DIR=/run/user/$(${pkgs.coreutils}/bin/id -u ${lib.escapeShellArg cfg.podmanUser})\" ${pkgs.podman}/bin/podman exec -it ${lib.escapeShellArg cfg.containerName}"
+      else "${pkgs.podman}/bin/podman exec -it ${lib.escapeShellArg cfg.containerName}";
 
     hermesCodexLogin = pkgs.writeShellApplication {
       name = "hermes-codex-login";
@@ -497,13 +517,13 @@ in {
 
         case "$mode" in
           login)
-            codex_args="login --device-auth"
+            hermes_args="auth add openai-codex --type oauth"
             ;;
           status)
-            codex_args="login status"
+            hermes_args="auth status openai-codex"
             ;;
           logout)
-            codex_args="logout"
+            hermes_args="auth logout openai-codex"
             ;;
           *)
             echo "Usage: hermes-codex-login [${lib.concatStringsSep "|" (lib.attrNames cfg.profiles)}] [login|status|logout]" >&2
@@ -511,7 +531,107 @@ in {
             ;;
         esac
 
-        exec ${podmanExec} /bin/sh -lc "install -d -m 0750 -o hermes -g hermes '$home/codex' && exec ${runAsHermes} env CODEX_HOME='$home/codex' HOME='$home/home' codex $codex_args"
+        cd /
+        exec ${podmanExec} /bin/sh -lc "install -d -m 0750 -o hermes -g hermes '$home' '$home/home' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' hermes $hermes_args"
+      '';
+    };
+
+    hermesAwsLogin = pkgs.writeShellApplication {
+      name = "hermes-aws-login";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.podman
+      ];
+      text = ''
+        profile="''${1:-orchestrator}"
+        if [ "$#" -gt 0 ]; then
+          shift
+        fi
+        mode="''${1:-login}"
+        if [ "$#" -gt 0 ]; then
+          shift
+        fi
+
+        case "$profile" in
+        ${awsProfileCases}
+        *)
+          echo "Unknown AWS-enabled Hermes profile: $profile" >&2
+          echo "Known AWS-enabled profiles: ${lib.concatStringsSep " " awsLoginProfiles}" >&2
+          exit 2
+          ;;
+        esac
+
+        case "$mode" in
+          configure)
+            aws_args=(configure)
+            ;;
+          login)
+            aws_args=(configure)
+            ;;
+          status)
+            aws_args=(sts get-caller-identity)
+            ;;
+          sso-configure)
+            aws_args=(configure sso)
+            ;;
+          sso-login)
+            aws_args=(sso login)
+            ;;
+          sso-logout)
+            aws_args=(sso logout)
+            ;;
+          logout)
+            echo "Static AWS credentials do not have a logout flow." >&2
+            echo "Edit or remove '$home/home/.aws/credentials' if you need to clear them." >&2
+            exit 2
+            ;;
+          *)
+            echo "Usage: hermes-aws-login [${lib.concatStringsSep "|" awsLoginProfiles}] [configure|login|status|logout|sso-configure|sso-login|sso-logout] [aws args...]" >&2
+            exit 2
+            ;;
+        esac
+
+        aws_command="aws"
+        for arg in "''${aws_args[@]}" "$@"; do
+          aws_command="$aws_command $(printf '%q' "$arg")"
+        done
+
+        cd /
+        exec ${podmanExec} /bin/sh -lc "install -d -m 0750 -o hermes -g hermes '$home/home' '$home/home/.aws' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HOME='$home/home' AWS_CONFIG_FILE='$home/home/.aws/config' AWS_SHARED_CREDENTIALS_FILE='$home/home/.aws/credentials' $aws_command"
+      '';
+    };
+
+    hermesContainerExec = pkgs.writeShellApplication {
+      name = "hermes-container";
+      runtimeInputs = [
+        pkgs.podman
+      ];
+      text = ''
+        profile="''${1:-orchestrator}"
+        if [ "$#" -gt 0 ]; then
+          shift
+        fi
+
+        case "$profile" in
+        ${codexProfileCases}
+        *)
+          echo "Unknown Hermes profile: $profile" >&2
+          echo "Known profiles: ${lib.concatStringsSep " " (lib.attrNames cfg.profiles)}" >&2
+          exit 2
+          ;;
+        esac
+
+        if [ "$#" -eq 0 ]; then
+          set -- hermes --tui
+        fi
+
+        command=""
+        for arg in "$@"; do
+          command="$command $(printf '%q' "$arg")"
+        done
+
+        cd /
+        exec ${podmanExec} /bin/sh -lc "install -d -m 0750 -o hermes -g hermes '$home' '$home/home' '$home/workspace' && cd '$home/workspace' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' $command"
       '';
     };
 
@@ -559,7 +679,8 @@ in {
           pkgs.podman
         ];
         text = ''
-          exec ${podmanExec} /bin/sh -lc "cd '${profile.homeDirectory}/workspace' && exec ${runAsHermes} env HERMES_HOME='${profile.homeDirectory}' HERMES_KANBAN_HOME=/var/lib/hermes CODEX_HOME='${profile.homeDirectory}/codex' HOME='${profile.homeDirectory}/home' hermes --tui"
+          cd /
+          exec ${podmanExec} /bin/sh -lc "cd '${profile.homeDirectory}/workspace' && set -a && [ ! -r '${profile.homeDirectory}/.env' ] || . '${profile.homeDirectory}/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='${profile.homeDirectory}' HERMES_KANBAN_HOME=/var/lib/hermes HOME='${profile.homeDirectory}/home' hermes --tui"
         '';
       })
     cfg.profiles;
@@ -578,20 +699,52 @@ in {
     environment.systemPackages =
       lib.optional cfg.dashboard.enable hermesWeb
       ++ [
+        hermesAwsLogin
         hermesCodexLogin
+        hermesContainerExec
       ]
       ++ profileTuiWrappers;
 
     systemd.tmpfiles.rules =
       [
         "d /var/lib/hermes-agent 0755 root root - -"
-        "d ${cfg.dataDirectory} 0750 1000 1000 - -"
-        "d ${cfg.dataDirectory}/profiles 0750 1000 1000 - -"
+        "d ${cfg.dataDirectory} 0750 ${
+          if rootlessPodman
+          then cfg.podmanUser
+          else "1000"
+        } ${
+          if rootlessPodman
+          then cfg.podmanUser
+          else "1000"
+        } - -"
+        "d ${cfg.dataDirectory}/profiles 0750 ${
+          if rootlessPodman
+          then cfg.podmanUser
+          else "1000"
+        } ${
+          if rootlessPodman
+          then cfg.podmanUser
+          else "1000"
+        } - -"
       ]
       ++ lib.concatMap (profile: [
         "d ${builtins.dirOf profile.environmentDirectory} 0755 root root - -"
         "d ${profile.environmentDirectory} 0755 root root - -"
       ]) (lib.attrValues cfg.profiles);
+
+    system.activationScripts.hermesContainerDataOwnership = lib.mkIf rootlessPodman {
+      deps = ["users"];
+      text = ''
+        if [ -d ${lib.escapeShellArg cfg.dataDirectory} ]; then
+          ${pkgs.coreutils}/bin/chown -R ${lib.escapeShellArg cfg.podmanUser}:${lib.escapeShellArg cfg.podmanUser} ${lib.escapeShellArg cfg.dataDirectory}
+        fi
+        ${lib.concatMapStringsSep "\n" (profile: ''
+          if [ -d ${lib.escapeShellArg (toString profile.environmentDirectory)} ]; then
+            ${pkgs.coreutils}/bin/chown -R ${lib.escapeShellArg cfg.podmanUser}:${lib.escapeShellArg cfg.podmanUser} ${lib.escapeShellArg (toString profile.environmentDirectory)}
+          fi
+        '') (lib.attrValues cfg.profiles)}
+      '';
+    };
 
     networking.firewall.allowedTCPPorts = openPorts;
 
@@ -600,12 +753,18 @@ in {
       autoStart = cfg.autostart;
       image = "localhost/hermes-agent:nix";
       imageFile = image;
+      podman.user = cfg.podmanUser;
       ports = containerPorts;
       volumes = containerVolumes;
-      extraOptions = [
-        "--replace"
-        "--pull=never"
-      ];
+      extraOptions =
+        [
+          "--replace"
+          "--pull=never"
+        ]
+        ++ lib.optionals rootlessPodman [
+          "--user=0:0"
+          "--userns=keep-id:uid=1000,gid=1000"
+        ];
     };
   });
 }

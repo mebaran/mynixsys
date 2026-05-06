@@ -110,7 +110,20 @@
       };
     };
   in {
-    formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.alejandra);
+    formatter = forAllSystems (system: let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in
+      pkgs.writeShellApplication {
+        name = "alejandra-tree";
+        runtimeInputs = [pkgs.alejandra];
+        text = ''
+          if [ "$#" -eq 0 ]; then
+            set -- "''${PRJ_ROOT:-.}"
+          fi
+
+          exec alejandra "$@"
+        '';
+      });
 
     homeConfigurations = mynixhome.homeConfigurations;
     nixosConfigurations = {
@@ -152,6 +165,7 @@
             services.hermesContainer = {
               enable = true;
               autostart = true;
+              podmanUser = "hermes";
               profiles = hermesProfiles;
             };
           }

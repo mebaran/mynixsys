@@ -44,6 +44,7 @@
     (pkgs.formats.yaml {}).generate "hermes-${name}-config.yaml" (profileSettings name profile);
 
   sysPkgs = with pkgs; [
+    awscli2
     curl
     duckdb
     bun
@@ -145,10 +146,10 @@ in {
       [
         "d ${home} 0750 hermes hermes - -"
         "d ${home}/home 0750 hermes hermes - -"
-        "d ${home}/codex 0750 hermes hermes - -"
         "d ${home}/workspace 0750 hermes hermes - -"
         "d ${home}/logs 0750 hermes hermes - -"
         "f ${home}/.env 0600 hermes hermes - -"
+        "f ${home}/home/.env 0600 hermes hermes - -"
         "f ${home}/host.env 0600 hermes hermes - -"
         "f ${home}/local.env 0600 hermes hermes - -"
       ]
@@ -203,7 +204,6 @@ in {
 
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg home}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/home"}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/codex"}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace"}
           install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
           ${lib.concatMapStringsSep "\n" (dir: "install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace/${dir}"}") hermesProfiles.${name}.workspaceDirectories}
@@ -232,6 +232,7 @@ in {
             cat ${lib.escapeShellArg "${home}/local.env"}
           } > "$env_tmp"
           install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
+          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/home/.env"}
         '';
       })
     hermesProfiles
@@ -250,20 +251,23 @@ in {
         environment = {
           HERMES_HOME = home;
           HERMES_KANBAN_HOME = "/var/lib/hermes";
-          CODEX_HOME = "${home}/codex";
           HOME = "${home}/home";
           API_SERVER_ENABLED = lib.boolToString profile.apiServer.enable;
           API_SERVER_HOST = profile.apiServer.host;
           API_SERVER_PORT = toString profile.apiServer.port;
           WEBHOOK_PORT = toString profile.webhook.port;
         };
-        path = [
-          hermesPackage
-          pkgs.bash
-          pkgs.coreutils
-          pkgs.git
-          pkgs.openssh
-        ];
+        path =
+          sysPkgs
+          ++ aiPkgs
+          ++ [
+            hermesPackage
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.findutils
+            pkgs.gnused
+            pkgs.openssh
+          ];
         serviceConfig = {
           Type = "simple";
           User = "hermes";

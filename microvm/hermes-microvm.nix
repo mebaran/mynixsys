@@ -215,6 +215,13 @@ in {
             ;;
         '')
         cfg.profiles);
+      awsLoginProfiles = lib.filter (name: lib.hasAttr name cfg.profiles) ["orchestrator" "coder"];
+      awsProfileCases = lib.concatStringsSep "\n" (map (name: ''
+          ${lib.escapeShellArg name})
+            home=${lib.escapeShellArg cfg.profiles.${name}.homeDirectory}
+            ;;
+        '')
+        awsLoginProfiles);
 
       hermesCodexLogin = pkgs.writeShellApplication {
         name = "hermes-codex-login";
@@ -237,13 +244,13 @@ in {
 
           case "$mode" in
             login)
-              codex_args="login --device-auth"
+              hermes_args="auth add openai-codex --type oauth"
               ;;
             status)
-              codex_args="login status"
+              hermes_args="auth status openai-codex"
               ;;
             logout)
-              codex_args="logout"
+              hermes_args="auth logout openai-codex"
               ;;
             *)
               echo "Usage: hermes-codex-login [${lib.concatStringsSep "|" (lib.attrNames cfg.profiles)}] [login|status|logout]" >&2
@@ -256,12 +263,150 @@ in {
 
           install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
 
-          codex_home="$home/codex"
           user_home="$home/home"
-          remote_inner="CODEX_HOME=$codex_home HOME=$user_home exec codex $codex_args"
-          quoted_codex_home="$(printf '%q' "$codex_home")"
+          remote_inner="set -a && [ ! -r $home/.env ] || . $home/.env && set +a && HERMES_HOME=$home HERMES_KANBAN_HOME=/var/lib/hermes HOME=$user_home exec hermes $hermes_args"
+          quoted_home="$(printf '%q' "$home")"
+          quoted_user_home="$(printf '%q' "$user_home")"
           quoted_inner="$(printf '%q' "$remote_inner")"
-          remote_command="install -d -m 0750 -o hermes -g hermes $quoted_codex_home && su -s /bin/sh hermes -c $quoted_inner"
+          remote_command="install -d -m 0750 -o hermes -g hermes $quoted_home $quoted_user_home && su -s /bin/sh hermes -c $quoted_inner"
+
+          exec ssh \
+            -t \
+            -F /dev/null \
+            -o IdentityFile="$tmpdir/host" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$tmpdir/known_hosts" \
+            root@${cfg.guestAddress} \
+            "$remote_command"
+        '';
+      };
+
+      hermesAwsLogin = pkgs.writeShellApplication {
+        name = "hermes-aws-login";
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.openssh
+        ];
+        text = ''
+          profile="''${1:-orchestrator}"
+          if [ "$#" -gt 0 ]; then
+            shift
+          fi
+          mode="''${1:-login}"
+          if [ "$#" -gt 0 ]; then
+            shift
+          fi
+
+          case "$profile" in
+          ${awsProfileCases}
+          *)
+            echo "Unknown AWS-enabled Hermes profile: $profile" >&2
+            echo "Known AWS-enabled profiles: ${lib.concatStringsSep " " awsLoginProfiles}" >&2
+            exit 2
+            ;;
+          esac
+
+          case "$mode" in
+            configure)
+              aws_args=(configure)
+              ;;
+            login)
+              aws_args=(configure)
+              ;;
+            status)
+              aws_args=(sts get-caller-identity)
+              ;;
+            sso-configure)
+              aws_args=(configure sso)
+              ;;
+            sso-login)
+              aws_args=(sso login)
+              ;;
+            sso-logout)
+              aws_args=(sso logout)
+              ;;
+            logout)
+              echo "Static AWS credentials do not have a logout flow." >&2
+              echo "Edit or remove '$home/home/.aws/credentials' if you need to clear them." >&2
+              exit 2
+              ;;
+            *)
+              echo "Usage: hermes-aws-login [${lib.concatStringsSep "|" awsLoginProfiles}] [configure|login|status|logout|sso-configure|sso-login|sso-logout] [aws args...]" >&2
+              exit 2
+              ;;
+          esac
+
+          aws_command="aws"
+          for arg in "''${aws_args[@]}" "$@"; do
+            aws_command="$aws_command $(printf '%q' "$arg")"
+          done
+
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
+
+          user_home="$home/home"
+          remote_inner="set -a && [ ! -r $home/.env ] || . $home/.env && set +a && HOME=$user_home AWS_CONFIG_FILE=$user_home/.aws/config AWS_SHARED_CREDENTIALS_FILE=$user_home/.aws/credentials exec $aws_command"
+          quoted_user_home="$(printf '%q' "$user_home")"
+          quoted_inner="$(printf '%q' "$remote_inner")"
+          remote_command="install -d -m 0750 -o hermes -g hermes $quoted_user_home $quoted_user_home/.aws && su -s /bin/sh hermes -c $quoted_inner"
+
+          exec ssh \
+            -t \
+            -F /dev/null \
+            -o IdentityFile="$tmpdir/host" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile="$tmpdir/known_hosts" \
+            root@${cfg.guestAddress} \
+            "$remote_command"
+        '';
+      };
+
+      hermesContainerExec = pkgs.writeShellApplication {
+        name = "hermes-container";
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.openssh
+        ];
+        text = ''
+          profile="''${1:-orchestrator}"
+          if [ "$#" -gt 0 ]; then
+            shift
+          fi
+
+          case "$profile" in
+          ${codexProfileCases}
+          *)
+            echo "Unknown Hermes profile: $profile" >&2
+            echo "Known profiles: ${lib.concatStringsSep " " (lib.attrNames cfg.profiles)}" >&2
+            exit 2
+            ;;
+          esac
+
+          if [ "$#" -eq 0 ]; then
+            set -- hermes --tui
+          fi
+
+          command=""
+          for arg in "$@"; do
+            command="$command $(printf '%q' "$arg")"
+          done
+
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          install -m 0600 /var/lib/hermes-agent/host "$tmpdir/host"
+
+          user_home="$home/home"
+          remote_inner="cd $home/workspace && set -a && [ ! -r $home/.env ] || . $home/.env && set +a && HERMES_HOME=$home HERMES_KANBAN_HOME=/var/lib/hermes HOME=$user_home exec $command"
+          quoted_home="$(printf '%q' "$home")"
+          quoted_user_home="$(printf '%q' "$user_home")"
+          quoted_workspace="$(printf '%q' "$home/workspace")"
+          quoted_inner="$(printf '%q' "$remote_inner")"
+          remote_command="install -d -m 0750 -o hermes -g hermes $quoted_home $quoted_user_home $quoted_workspace && su -s /bin/sh hermes -c $quoted_inner"
 
           exec ssh \
             -t \
@@ -277,7 +422,7 @@ in {
 
       profileTuiWrappers = lib.mapAttrsToList (name: profile: let
         hermesArgs = ["hermes" "--tui"];
-        tuiCommand = "cd ${profile.homeDirectory}/workspace && HERMES_HOME=${profile.homeDirectory} CODEX_HOME=${profile.homeDirectory}/codex exec ${lib.escapeShellArgs hermesArgs}";
+        tuiCommand = "cd ${profile.homeDirectory}/workspace && set -a && [ ! -r ${profile.homeDirectory}/.env ] || . ${profile.homeDirectory}/.env && set +a && HERMES_HOME=${profile.homeDirectory} HOME=${profile.homeDirectory}/home exec ${lib.escapeShellArgs hermesArgs}";
         remoteCommand = "su -s /bin/sh hermes -c ${lib.escapeShellArg tuiCommand}";
       in
         pkgs.writeShellApplication {
@@ -307,7 +452,9 @@ in {
     in
       [
         sshHermesMicrovm
+        hermesAwsLogin
         hermesCodexLogin
+        hermesContainerExec
       ]
       ++ profileTuiWrappers;
 
