@@ -60,11 +60,18 @@
         provider = "openai-codex";
         default = "gpt-5.5";
       },
+      fallbackProviders ? [
+        {
+          provider = "openrouter";
+          model = "moonshotai/kimi-k2.6";
+        }
+      ],
       workspaceDirectories ? [],
     }: {
       environmentDirectory = "/var/lib/hermes-agent/profiles/${name}/env.d";
       inherit homeDirectory;
       inherit model;
+      inherit fallbackProviders;
       externalSkillDirectories = [];
       inherit workspaceDirectories;
       apiServer = {

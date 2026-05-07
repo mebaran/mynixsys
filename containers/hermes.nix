@@ -76,6 +76,12 @@ in {
             description = "Hermes model configuration written to this profile's config.yaml.";
           };
 
+          fallbackProviders = lib.mkOption {
+            type = lib.types.listOf lib.types.attrs;
+            default = [];
+            description = "Ordered Hermes fallback provider/model entries written to fallback_providers in this profile's config.yaml.";
+          };
+
           externalSkillDirectories = lib.mkOption {
             type = lib.types.listOf lib.types.path;
             default = [];
@@ -173,6 +179,9 @@ in {
       baseSettings
       // {
         model = profile.model;
+      }
+      // lib.optionalAttrs (profile.fallbackProviders != []) {
+        fallback_providers = profile.fallbackProviders;
       }
       // lib.optionalAttrs (profile.externalSkillDirectories != []) {
         skills.external_dirs = profile.externalSkillDirectories;
