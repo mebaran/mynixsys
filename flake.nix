@@ -160,7 +160,6 @@
           ./common/desktop.nix
           ./omen/configuration.nix
           ./containers/hermes.nix
-          # ./microvm/openclaw-microvm.nix
           {
             services.hermesContainer = {
               enable = true;

@@ -207,6 +207,9 @@ in {
     ];
 
     runAsHermes = "${pkgs.s6}/bin/s6-applyuidgid -u 1000 -g 1000 -G 1000";
+    hermesDirMode = "2775";
+    hermesFileMode = "0664";
+    hermesSecretFileMode = "0660";
 
     serviceTree = pkgs.runCommand "hermes-s6-services" {} ''
       set -eu
@@ -216,7 +219,7 @@ in {
           envDir = "/run/host-hermes-profiles/${name}/env.d";
           workspaceDirs =
             lib.concatMapStringsSep "\n" (dir: ''
-              install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace/${dir}"}
+              install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace/${dir}"}
             '')
             profile.workspaceDirectories;
         in ''
@@ -225,6 +228,7 @@ in {
           cat > "$out/hermes-${name}/run" <<'EOF'
           #!${pkgs.runtimeShell}
           set -eu
+          umask 0002
           export PATH=${lib.escapeShellArg path}
           export HERMES_HOME=${lib.escapeShellArg home}
           export HERMES_KANBAN_HOME=/var/lib/hermes
@@ -234,12 +238,12 @@ in {
           export API_SERVER_PORT=${lib.escapeShellArg (toString profile.apiServer.port)}
           export WEBHOOK_PORT=${lib.escapeShellArg (toString profile.webhook.port)}
 
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg home}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/home"}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace"}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg home}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/home"}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace"}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
           ${workspaceDirs}
-          install -m 0640 -o hermes -g hermes ${profileConfigFile name profile} ${lib.escapeShellArg "${home}/config.yaml"}
+          install -m ${hermesFileMode} -o hermes -g hermes ${profileConfigFile name profile} ${lib.escapeShellArg "${home}/config.yaml"}
 
           setup_lock=${lib.escapeShellArg "${home}/.setup.lock"}
           while ! mkdir "$setup_lock" 2>/dev/null; do
@@ -258,9 +262,9 @@ in {
             : > "$host_tmp"
           fi
 
-          install -m 0600 -o hermes -g hermes "$host_tmp" ${lib.escapeShellArg "${home}/host.env"}
+          install -m ${hermesSecretFileMode} -o hermes -g hermes "$host_tmp" ${lib.escapeShellArg "${home}/host.env"}
           if [ ! -e ${lib.escapeShellArg "${home}/local.env"} ]; then
-            install -m 0600 -o hermes -g hermes /dev/null ${lib.escapeShellArg "${home}/local.env"}
+            install -m ${hermesSecretFileMode} -o hermes -g hermes /dev/null ${lib.escapeShellArg "${home}/local.env"}
           fi
 
           {
@@ -268,8 +272,8 @@ in {
             printf '\n'
             cat ${lib.escapeShellArg "${home}/local.env"}
           } > "$env_tmp"
-          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
-          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/home/.env"}
+          install -m ${hermesSecretFileMode} -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
+          install -m ${hermesSecretFileMode} -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/home/.env"}
 
           set -a
           . ${lib.escapeShellArg "${home}/.env"}
@@ -296,7 +300,7 @@ in {
         envDir = "/run/host-hermes-profiles/${name}/env.d";
         workspaceDirs =
           lib.concatMapStringsSep "\n" (dir: ''
-            install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace/${dir}"}
+            install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace/${dir}"}
           '')
           profile.workspaceDirectories;
       in
@@ -306,18 +310,19 @@ in {
           cat > "$out/hermes-dashboard-${name}/run" <<'EOF'
           #!${pkgs.runtimeShell}
           set -eu
+          umask 0002
           export PATH=${lib.escapeShellArg path}
           export HERMES_HOME=${lib.escapeShellArg home}
           export HERMES_KANBAN_HOME=/var/lib/hermes
           export HOME=${lib.escapeShellArg "${home}/home"}
           export HERMES_DASHBOARD_TUI=1
 
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg home}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/home"}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace"}
-          install -d -m 0750 -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg home}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/home"}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/workspace"}
+          install -d -m ${hermesDirMode} -o hermes -g hermes ${lib.escapeShellArg "${home}/logs"}
           ${workspaceDirs}
-          install -m 0640 -o hermes -g hermes ${profileConfigFile name profile} ${lib.escapeShellArg "${home}/config.yaml"}
+          install -m ${hermesFileMode} -o hermes -g hermes ${profileConfigFile name profile} ${lib.escapeShellArg "${home}/config.yaml"}
 
           setup_lock=${lib.escapeShellArg "${home}/.setup.lock"}
           while ! mkdir "$setup_lock" 2>/dev/null; do
@@ -336,9 +341,9 @@ in {
             : > "$host_tmp"
           fi
 
-          install -m 0600 -o hermes -g hermes "$host_tmp" ${lib.escapeShellArg "${home}/host.env"}
+          install -m ${hermesSecretFileMode} -o hermes -g hermes "$host_tmp" ${lib.escapeShellArg "${home}/host.env"}
           if [ ! -e ${lib.escapeShellArg "${home}/local.env"} ]; then
-            install -m 0600 -o hermes -g hermes /dev/null ${lib.escapeShellArg "${home}/local.env"}
+            install -m ${hermesSecretFileMode} -o hermes -g hermes /dev/null ${lib.escapeShellArg "${home}/local.env"}
           fi
 
           {
@@ -346,8 +351,8 @@ in {
             printf '\n'
             cat ${lib.escapeShellArg "${home}/local.env"}
           } > "$env_tmp"
-          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
-          install -m 0600 -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/home/.env"}
+          install -m ${hermesSecretFileMode} -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/.env"}
+          install -m ${hermesSecretFileMode} -o hermes -g hermes "$env_tmp" ${lib.escapeShellArg "${home}/home/.env"}
 
           set -a
             . ${lib.escapeShellArg "${home}/.env"}
@@ -532,7 +537,7 @@ in {
         esac
 
         cd /
-        exec ${podmanExec} /bin/sh -lc "install -d -m 0750 -o hermes -g hermes '$home' '$home/home' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' hermes $hermes_args"
+        exec ${podmanExec} /bin/sh -lc "umask 0002 && install -d -m ${hermesDirMode} -o hermes -g hermes '$home' '$home/home' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' hermes $hermes_args"
       '';
     };
 
@@ -597,7 +602,7 @@ in {
         done
 
         cd /
-        exec ${podmanExec} /bin/sh -lc "install -d -m 0750 -o hermes -g hermes '$home/home' '$home/home/.aws' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HOME='$home/home' AWS_CONFIG_FILE='$home/home/.aws/config' AWS_SHARED_CREDENTIALS_FILE='$home/home/.aws/credentials' $aws_command"
+        exec ${podmanExec} /bin/sh -lc "umask 0002 && install -d -m ${hermesDirMode} -o hermes -g hermes '$home/home' '$home/home/.aws' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HOME='$home/home' AWS_CONFIG_FILE='$home/home/.aws/config' AWS_SHARED_CREDENTIALS_FILE='$home/home/.aws/credentials' $aws_command"
       '';
     };
 
@@ -631,7 +636,7 @@ in {
         done
 
         cd /
-        exec ${podmanExec} /bin/sh -lc "install -d -m 0750 -o hermes -g hermes '$home' '$home/home' '$home/workspace' && cd '$home/workspace' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' $command"
+        exec ${podmanExec} /bin/sh -lc "umask 0002 && install -d -m ${hermesDirMode} -o hermes -g hermes '$home' '$home/home' '$home/workspace' && cd '$home/workspace' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' $command"
       '';
     };
 
@@ -680,7 +685,7 @@ in {
         ];
         text = ''
           cd /
-          exec ${podmanExec} /bin/sh -lc "cd '${profile.homeDirectory}/workspace' && set -a && [ ! -r '${profile.homeDirectory}/.env' ] || . '${profile.homeDirectory}/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='${profile.homeDirectory}' HERMES_KANBAN_HOME=/var/lib/hermes HOME='${profile.homeDirectory}/home' hermes --tui"
+          exec ${podmanExec} /bin/sh -lc "umask 0002 && cd '${profile.homeDirectory}/workspace' && set -a && [ ! -r '${profile.homeDirectory}/.env' ] || . '${profile.homeDirectory}/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='${profile.homeDirectory}' HERMES_KANBAN_HOME=/var/lib/hermes HOME='${profile.homeDirectory}/home' hermes --tui"
         '';
       })
     cfg.profiles;
@@ -708,7 +713,7 @@ in {
     systemd.tmpfiles.rules =
       [
         "d /var/lib/hermes-agent 0755 root root - -"
-        "d ${cfg.dataDirectory} 0750 ${
+        "d ${cfg.dataDirectory} ${hermesDirMode} ${
           if rootlessPodman
           then cfg.podmanUser
           else "1000"
@@ -717,7 +722,7 @@ in {
           then cfg.podmanUser
           else "1000"
         } - -"
-        "d ${cfg.dataDirectory}/profiles 0750 ${
+        "d ${cfg.dataDirectory}/profiles ${hermesDirMode} ${
           if rootlessPodman
           then cfg.podmanUser
           else "1000"
@@ -737,6 +742,9 @@ in {
       text = ''
         if [ -d ${lib.escapeShellArg cfg.dataDirectory} ]; then
           ${pkgs.coreutils}/bin/chown -R ${lib.escapeShellArg cfg.podmanUser}:${lib.escapeShellArg cfg.podmanUser} ${lib.escapeShellArg cfg.dataDirectory}
+          ${pkgs.findutils}/bin/find ${lib.escapeShellArg cfg.dataDirectory} -type d -exec ${pkgs.coreutils}/bin/chmod g+rwx,o+rx,g+s {} +
+          ${pkgs.findutils}/bin/find ${lib.escapeShellArg cfg.dataDirectory} -type f -exec ${pkgs.coreutils}/bin/chmod g+rw,o+r {} +
+          ${pkgs.findutils}/bin/find ${lib.escapeShellArg cfg.dataDirectory} -type f \( -name '.env' -o -name 'host.env' -o -name 'local.env' \) -exec ${pkgs.coreutils}/bin/chmod ${hermesSecretFileMode} {} +
         fi
         ${lib.concatMapStringsSep "\n" (profile: ''
           if [ -d ${lib.escapeShellArg (toString profile.environmentDirectory)} ]; then

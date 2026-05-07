@@ -87,9 +87,8 @@ in {
 
   # Enable networking
   networking.networkmanager.enable = true;
-  # The host's real connectivity is managed by NetworkManager. `systemd-networkd`
-  # is only present for the MicroVM bridge, so its global wait-online job just
-  # adds a two minute timeout during rebuilds.
+  # NetworkManager manages the host's real connectivity; avoid networkd's
+  # wait-online delay during rebuilds.
   systemd.network.wait-online.enable = false;
 
   # Set your time zone.
@@ -115,7 +114,7 @@ in {
     isNormalUser = true;
     uid = 1000;
     description = "Mark Baran";
-    extraGroups = ["networkmanager" "wheel"];
+    extraGroups = ["hermes" "networkmanager" "wheel"];
     linger = true;
   };
 
