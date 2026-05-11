@@ -71,7 +71,7 @@ in {
             type = lib.types.attrs;
             default = {
               provider = "openai-codex";
-              default = "gpt-5.3-codex";
+              default = "gpt-5.5";
             };
             description = "Hermes model configuration written to this profile's config.yaml.";
           };
@@ -213,6 +213,8 @@ in {
       pkgs.s6-linux-utils
       pkgs.uv
       pkgs.vim
+      pkgs.python3
+      pkgs.ruff
     ];
 
     runAsHermes = "${pkgs.s6}/bin/s6-applyuidgid -u 1000 -g 1000 -G 1000";
@@ -240,6 +242,7 @@ in {
           umask 0002
           export PATH=${lib.escapeShellArg path}
           export HERMES_HOME=${lib.escapeShellArg home}
+          export HERMES_HOME_MODE=${hermesDirMode}
           export HERMES_KANBAN_HOME=/var/lib/hermes
           export HOME=${lib.escapeShellArg "${home}/home"}
           export API_SERVER_ENABLED=${lib.escapeShellArg (lib.boolToString profile.apiServer.enable)}
@@ -322,6 +325,7 @@ in {
           umask 0002
           export PATH=${lib.escapeShellArg path}
           export HERMES_HOME=${lib.escapeShellArg home}
+          export HERMES_HOME_MODE=${hermesDirMode}
           export HERMES_KANBAN_HOME=/var/lib/hermes
           export HOME=${lib.escapeShellArg "${home}/home"}
           export HERMES_DASHBOARD_TUI=1
@@ -447,6 +451,7 @@ in {
         Entrypoint = ["${lib.getExe init}"];
         Env = [
           "HERMES_HOME=/var/lib/hermes"
+          "HERMES_HOME_MODE=${hermesDirMode}"
           "HERMES_KANBAN_HOME=/var/lib/hermes"
           "NIX_SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
           "PATH=${path}"
@@ -546,7 +551,7 @@ in {
         esac
 
         cd /
-        exec ${podmanExec} /bin/sh -lc "umask 0002 && install -d -m ${hermesDirMode} -o hermes -g hermes '$home' '$home/home' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' hermes $hermes_args"
+        exec ${podmanExec} /bin/sh -lc "umask 0002 && install -d -m ${hermesDirMode} -o hermes -g hermes '$home' '$home/home' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_HOME_MODE=${hermesDirMode} HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' hermes $hermes_args"
       '';
     };
 
@@ -645,7 +650,7 @@ in {
         done
 
         cd /
-        exec ${podmanExec} /bin/sh -lc "umask 0002 && install -d -m ${hermesDirMode} -o hermes -g hermes '$home' '$home/home' '$home/workspace' && cd '$home/workspace' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' $command"
+        exec ${podmanExec} /bin/sh -lc "umask 0002 && install -d -m ${hermesDirMode} -o hermes -g hermes '$home' '$home/home' '$home/workspace' && cd '$home/workspace' && set -a && [ ! -r '$home/.env' ] || . '$home/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='$home' HERMES_HOME_MODE=${hermesDirMode} HERMES_KANBAN_HOME=/var/lib/hermes HOME='$home/home' $command"
       '';
     };
 
@@ -694,7 +699,7 @@ in {
         ];
         text = ''
           cd /
-          exec ${podmanExec} /bin/sh -lc "umask 0002 && cd '${profile.homeDirectory}/workspace' && set -a && [ ! -r '${profile.homeDirectory}/.env' ] || . '${profile.homeDirectory}/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='${profile.homeDirectory}' HERMES_KANBAN_HOME=/var/lib/hermes HOME='${profile.homeDirectory}/home' hermes --tui"
+          exec ${podmanExec} /bin/sh -lc "umask 0002 && cd '${profile.homeDirectory}/workspace' && set -a && [ ! -r '${profile.homeDirectory}/.env' ] || . '${profile.homeDirectory}/.env' && set +a && exec ${runAsHermes} env HERMES_HOME='${profile.homeDirectory}' HERMES_HOME_MODE=${hermesDirMode} HERMES_KANBAN_HOME=/var/lib/hermes HOME='${profile.homeDirectory}/home' hermes --tui"
         '';
       })
     cfg.profiles;

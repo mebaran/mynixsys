@@ -28,6 +28,7 @@
     pkgs.wl-clipboard
     pkgs.home-manager
     pkgs.nh
+    pkgs.make
   ];
 
   users.defaultUserShell = pkgs.zsh;
