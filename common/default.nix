@@ -28,7 +28,7 @@
     pkgs.wl-clipboard
     pkgs.home-manager
     pkgs.nh
-    pkgs.make
+    pkgs.gnumake
   ];
 
   users.defaultUserShell = pkgs.zsh;
