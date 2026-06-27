@@ -137,7 +137,7 @@
       nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents;
+          inherit hermes llm-agents niri;
         };
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
@@ -156,7 +156,7 @@
       omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents;
+          inherit hermes llm-agents niri;
         };
         modules = [
           determinate.nixosModules.default

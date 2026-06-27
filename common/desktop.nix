@@ -1,4 +1,8 @@
-{pkgs, ...}: {
+{
+  niri,
+  pkgs,
+  ...
+}: {
   fonts = {
     packages = with pkgs; [
       nerd-fonts.jetbrains-mono
@@ -13,6 +17,8 @@
   };
 
   programs.firefox.enable = true;
+
+  hardware.uinput.enable = true;
 
   # Enable the KDE Plasma Desktop Environment.
   #services.displayManager.sddm.enable = true;
@@ -48,5 +54,6 @@
 
   # Niri DE
   programs.niri.enable = true;
+  programs.niri.package = niri.packages.${pkgs.system}.niri-unstable;
   systemd.user.services.niri-flake-polkit.enable = false;
 }

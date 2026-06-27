@@ -114,7 +114,7 @@ in {
     isNormalUser = true;
     uid = 1000;
     description = "Mark Baran";
-    extraGroups = ["hermes" "networkmanager" "wheel"];
+    extraGroups = ["hermes" "networkmanager" "uinput" "wheel"];
     linger = true;
   };
 
