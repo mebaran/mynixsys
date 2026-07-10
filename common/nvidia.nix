@@ -1,5 +1,31 @@
 {pkgs, ...}: {
-  nixpkgs.config.allowUnfree = true;
+  mynixsys.unfreePackages = [
+    "cuda-merged"
+    "cuda_cccl"
+    "cuda_cuobjdump"
+    "cuda_cudart"
+    "cuda_cupti"
+    "cuda_cuxxfilt"
+    "cuda_gdb"
+    "cuda_nvcc"
+    "cuda_nvdisasm"
+    "cuda_nvml_dev"
+    "cuda_nvprune"
+    "cuda_nvrtc"
+    "cuda_nvtx"
+    "cuda_profiler_api"
+    "cuda_sanitizer_api"
+    "libcublas"
+    "libcufft"
+    "libcurand"
+    "libcusolver"
+    "libcusparse"
+    "libnpp"
+    "libnvjitlink"
+    "nvidia-settings"
+    "nvidia-x11"
+    "steam-unwrapped"
+  ];
 
   #cuda
   hardware = {
@@ -23,9 +49,9 @@
   environment.systemPackages = [
     pkgs.steam-run
   ];
-  services.ollama = {
-    enable = true;
-    package = pkgs.ollama-cuda;
-    openFirewall = true;
-  };
+  # services.ollama = {
+  #   enable = true;
+  #   package = pkgs.ollama-cuda;
+  #   openFirewall = true;
+  # };
 }

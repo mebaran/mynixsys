@@ -165,6 +165,7 @@
           ./common
           ./common/nvidia.nix
           ./common/desktop.nix
+          ./common/twingate.nix
           ./omen/configuration.nix
           ./containers/hermes.nix
           {

@@ -1,6 +1,9 @@
 {pkgs, ...}: {
+  imports = [
+    ./unfree.nix
+  ];
+
   nix.settings.experimental-features = ["nix-command" "flakes"];
-  nixpkgs.config.allowUnfree = true;
 
   # Enable common container config files in /etc/containers
   virtualisation = {
