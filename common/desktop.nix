@@ -54,6 +54,20 @@
 
   # Niri DE
   programs.niri.enable = true;
-  programs.niri.package = niri.packages.${pkgs.system}.niri-unstable;
+  programs.niri.package = pkgs.niri;
   systemd.user.services.niri-flake-polkit.enable = false;
+
+  xdg.portal.config.niri = {
+    default = [
+      "gnome"
+      "gtk"
+    ];
+    "org.freedesktop.impl.portal.Access" = ["gtk"];
+    "org.freedesktop.impl.portal.FileChooser" = [
+      "cosmic"
+      "gtk"
+    ];
+    "org.freedesktop.impl.portal.Notification" = ["gtk"];
+    "org.freedesktop.impl.portal.Secret" = ["gnome-keyring"];
+  };
 }

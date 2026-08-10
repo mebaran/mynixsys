@@ -19,10 +19,14 @@ in {
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
+  boot.loader.systemd-boot.configurationLimit = 2;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.extraModprobeConfig = ''
+    options hid_apple fnmode=2
+  '';
 
   boot.initrd.supportedFilesystems = ["vfat"];
   boot.initrd.luks.devices.${luksRootName} = {
