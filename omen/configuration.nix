@@ -11,6 +11,56 @@
   luksRootUuid = "89d4e83d-85cf-44c0-8d7e-6ecdd790ecc1";
   luksRootName = "luks-${luksRootUuid}";
   luksRootCryptsetupUnit = "systemd-cryptsetup@${utils.escapeSystemdPath luksRootName}.service";
+  playitLogin = pkgs.writeShellApplication {
+    name = "playit-login";
+    runtimeInputs = [
+      config.services.playit.finalPackage
+      pkgs.coreutils
+      pkgs.gnugrep
+      pkgs.systemd
+    ];
+    text = ''
+      secret_path=/etc/playit/secret.toml
+
+      if [ -e "$secret_path" ]; then
+        read -r -p "$secret_path already exists; replace it? [y/N] " answer </dev/tty
+        case "$answer" in
+          y|Y|yes|YES) ;;
+          *) echo "Cancelled."; exit 0 ;;
+        esac
+      fi
+
+      claim_code="$(playit-cli claim generate)"
+      claim_url="$(playit-cli claim url "$claim_code")"
+      echo "Open this URL and approve the agent:"
+      echo "$claim_url"
+      echo
+
+      exchange_output="$(mktemp)"
+      secret_file="$(mktemp)"
+      trap 'rm -f "$exchange_output" "$secret_file"' EXIT
+      chmod 0600 "$exchange_output" "$secret_file"
+
+      # Keep the returned key out of the displayed output while retaining it
+      # long enough to install the service credential.
+      playit-cli --stdout claim exchange "$claim_code" 2>&1 \
+        | tee "$exchange_output" \
+        | sed -E 's/[[:xdigit:]]{64}/[secret received]/g'
+
+      secret_key="$(grep -Eo '[[:xdigit:]]{64}' "$exchange_output" | tail -n 1)"
+      if [ -z "$secret_key" ]; then
+        echo "Could not find a Playit secret in the claim response." >&2
+        exit 1
+      fi
+
+      printf 'secret_key = "%s"\n' "$secret_key" >"$secret_file"
+      ${pkgs.sudo}/bin/sudo install -D -m 0400 -o root -g root \
+        "$secret_file" "$secret_path"
+      ${pkgs.sudo}/bin/sudo systemctl restart playit.service
+
+      echo "Installed $secret_path and restarted playit.service."
+    '';
+  };
 in {
   imports = [
     # Include the results of the hardware scan.
@@ -19,7 +69,7 @@ in {
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
-  boot.loader.systemd-boot.configurationLimit = 2;
+  boot.loader.systemd-boot.configurationLimit = 1;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Use latest kernel.
@@ -156,8 +206,15 @@ in {
 
   # List services that you want to enable:
 
-  # Enable the OpenSSH daemon.
+  # Enable remote terminal access.
   services.openssh.enable = true;
+  services.eternal-terminal.enable = true;
+  services.playit = {
+    enable = true;
+    secretPath = "/etc/playit/secret.toml";
+  };
+  services.logrotate.enable = true;
+  environment.systemPackages = [playitLogin];
   services.sunshine = {
     package = pkgs.sunshine.override {
       cudaSupport = true;
@@ -173,7 +230,10 @@ in {
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;
   # enable RDP ports too
-  networking.firewall.allowedTCPPorts = [3389];
+  networking.firewall.allowedTCPPorts = [
+    config.services.eternal-terminal.port # Eternal Terminal
+    3389 # RDP
+  ];
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions

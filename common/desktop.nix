@@ -1,8 +1,4 @@
-{
-  niri,
-  pkgs,
-  ...
-}: {
+{pkgs, ...}: {
   fonts = {
     packages = with pkgs; [
       nerd-fonts.jetbrains-mono
@@ -55,7 +51,7 @@
   # Niri DE
   programs.niri.enable = true;
   programs.niri.package = pkgs.niri;
-  systemd.user.services.niri-flake-polkit.enable = false;
+  services.displayManager.defaultSession = "niri";
 
   xdg.portal.config.niri = {
     default = [

@@ -2,9 +2,13 @@
   description = "My NixOS systems, containers, and service configuration";
 
   nixConfig = {
-    extra-substituters = ["https://cache.numtide.com"];
+    extra-substituters = [
+      "https://cache.numtide.com"
+      "https://playit-nixos-module.cachix.org"
+    ];
     extra-trusted-public-keys = [
       "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
+      "playit-nixos-module.cachix.org-1:22hBXWXBbd/7o1cOnh+p0hpFUVk9lPdRLX3p5YSfRz4="
     ];
   };
 
@@ -18,13 +22,13 @@
     };
 
     # extra flakes for more more modules
-    niri = {
-      url = "github:sodiboo/niri-flake";
+    llm-agents = {
+      url = "github:numtide/llm-agents.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    llm-agents = {
-      url = "github:numtide/llm-agents.nix";
+    playit-nixos-module = {
+      url = "github:pedorich-n/playit-nixos-module";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -46,8 +50,8 @@
     nixos-wsl,
     determinate,
     mynixhome,
-    niri,
     llm-agents,
+    playit-nixos-module,
     hermes,
     ...
   }: let
@@ -137,7 +141,7 @@
       nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents niri;
+          inherit hermes llm-agents;
         };
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
@@ -156,11 +160,11 @@
       omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents niri;
+          inherit hermes llm-agents;
         };
         modules = [
           determinate.nixosModules.default
-          niri.nixosModules.niri
+          playit-nixos-module.nixosModules.default
 
           ./common
           ./common/nvidia.nix
