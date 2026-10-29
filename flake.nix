@@ -4,11 +4,9 @@
   nixConfig = {
     extra-substituters = [
       "https://cache.numtide.com"
-      "https://playit-nixos-module.cachix.org"
     ];
     extra-trusted-public-keys = [
       "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
-      "playit-nixos-module.cachix.org-1:22hBXWXBbd/7o1cOnh+p0hpFUVk9lPdRLX3p5YSfRz4="
     ];
   };
 
@@ -27,16 +25,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    playit-nixos-module = {
-      url = "github:pedorich-n/playit-nixos-module";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    hermes = {
-      url = "github:NousResearch/hermes-agent/main";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Home Manager flake from your GitHub repo
     mynixhome = {
       url = "github:mebaran/mynixhome";
@@ -51,75 +39,10 @@
     determinate,
     mynixhome,
     llm-agents,
-    playit-nixos-module,
-    hermes,
     ...
   }: let
     lib = nixpkgs.lib;
     forAllSystems = lib.genAttrs ["x86_64-linux"];
-    mkHermesProfile = name: {
-      portOffset,
-      homeDirectory ? "/var/lib/hermes/profiles/${name}",
-      model ? {
-        provider = "openai-codex";
-        default = "gpt-5.5";
-      },
-      fallbackProviders ? [
-        {
-          provider = "openrouter";
-          model = "moonshotai/kimi-k2.6";
-        }
-      ],
-      workspaceDirectories ? [],
-    }: {
-      environmentDirectory = "/var/lib/hermes-agent/profiles/${name}/env.d";
-      inherit homeDirectory;
-      inherit model;
-      inherit fallbackProviders;
-      externalSkillDirectories = [];
-      inherit workspaceDirectories;
-      apiServer = {
-        enable = true;
-        host = "0.0.0.0";
-        port = 8800 + portOffset;
-        openFirewall = true;
-      };
-      webhook = {
-        port = 8900 + portOffset;
-        openFirewall = true;
-      };
-      dashboard = {
-        enable = true;
-        port = 9000 + portOffset;
-        openFirewall = true;
-      };
-    };
-    hermesProfiles = {
-      orchestrator = mkHermesProfile "orchestrator" {
-        portOffset = 0;
-        homeDirectory = "/var/lib/hermes";
-        workspaceDirectories = [
-          "board"
-          "requests"
-          "scratch"
-        ];
-      };
-      pa = mkHermesProfile "pa" {
-        portOffset = 1;
-        workspaceDirectories = [
-          "scratch"
-          "requests"
-        ];
-      };
-      coder = mkHermesProfile "coder" {
-        portOffset = 2;
-        workspaceDirectories = [
-          "repos"
-          "requests"
-          "scratch"
-        ];
-      };
-    };
   in {
     formatter = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
@@ -141,7 +64,7 @@
       nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents;
+          inherit llm-agents;
         };
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
@@ -160,26 +83,16 @@
       omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit hermes llm-agents;
+          inherit llm-agents;
         };
         modules = [
           determinate.nixosModules.default
-          playit-nixos-module.nixosModules.default
 
           ./common
           ./common/nvidia.nix
           ./common/desktop.nix
           ./common/twingate.nix
           ./omen/configuration.nix
-          ./containers/hermes.nix
-          {
-            services.hermesContainer = {
-              enable = true;
-              autostart = true;
-              podmanUser = "hermes";
-              profiles = hermesProfiles;
-            };
-          }
         ];
       };
     };
