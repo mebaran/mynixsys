@@ -208,7 +208,6 @@ in {
 
   # Enable remote terminal access.
   services.openssh.enable = true;
-  services.eternal-terminal.enable = true;
   services.playit = {
     enable = true;
     secretPath = "/etc/playit/secret.toml";
@@ -231,7 +230,6 @@ in {
   # networking.firewall.enable = false;
   # enable RDP ports too
   networking.firewall.allowedTCPPorts = [
-    config.services.eternal-terminal.port # Eternal Terminal
     3389 # RDP
   ];
 
