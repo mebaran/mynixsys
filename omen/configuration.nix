@@ -119,6 +119,7 @@ in {
     description = "Mark Baran";
     extraGroups = ["networkmanager" "uinput" "wheel"];
     linger = true;
+    openssh.authorizedKeys.keys = builtins.attrValues (import ../common/ssh-keys.nix);
   };
 
   # List packages installed in system profile. To search, run:
@@ -137,6 +138,13 @@ in {
   # Enable remote terminal access.
   services.openssh.enable = true;
   services.logrotate.enable = true;
+  # Join the tailnet; authenticate once with `sudo tailscale up`.
+  services.tailscale = {
+    enable = true;
+    openFirewall = true;
+  };
+  # Allow everything arriving over the tailnet; ACLs govern access there.
+  networking.firewall.trustedInterfaces = ["tailscale0"];
   services.sunshine = {
     package = pkgs.sunshine.override {
       cudaSupport = true;

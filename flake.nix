@@ -73,6 +73,7 @@
 
           # Shared common configurations (assuming these exist at these paths)
           ./common
+          ./common/host-admin.nix
           ./common/nvidia.nix
 
           # The new abstracted WSL options
@@ -89,10 +90,11 @@
           determinate.nixosModules.default
 
           ./common
+          ./common/host-admin.nix
           ./common/nvidia.nix
           ./common/desktop.nix
-          ./common/twingate.nix
           ./omen/configuration.nix
+          ./omen/twingate-gw.nix
         ];
       };
     };
