@@ -27,10 +27,12 @@
     neovim.enable = true;
   };
 
+  # Terminfo for the terminals we ssh in from (xterm-ghostty and friends),
+  # so TERM is recognized and key handling works.
+  environment.enableAllTerminfo = true;
+
   environment.systemPackages = [
     pkgs.wl-clipboard
-    pkgs.home-manager
-    pkgs.nh
     pkgs.gnumake
   ];
 
