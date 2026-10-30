@@ -145,6 +145,12 @@ in {
   };
   # Allow everything arriving over the tailnet; ACLs govern access there.
   networking.firewall.trustedInterfaces = ["tailscale0"];
+  # mosh-server for roaming SSH sessions; its UDP ports are only reachable via
+  # the trusted tailscale0 interface, so don't open them on the LAN.
+  programs.mosh = {
+    enable = true;
+    openFirewall = false;
+  };
   services.sunshine = {
     package = pkgs.sunshine.override {
       cudaSupport = true;
