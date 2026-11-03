@@ -34,6 +34,9 @@
   environment.systemPackages = [
     pkgs.wl-clipboard
     pkgs.gnumake
+    pkgs.gcc
+    pkgs.cmake
+    pkgs.pkg-config
   ];
 
   users.defaultUserShell = pkgs.zsh;
