@@ -3,7 +3,18 @@
     ./unfree.nix
   ];
 
-  nix.settings.experimental-features = ["nix-command" "flakes"];
+  nix.settings = {
+    experimental-features = ["nix-command" "flakes"];
+    # System-wide caches: used by every user, trusted or not.
+    substituters = [
+      "https://cache.numtide.com"
+      "https://noctalia.cachix.org"
+    ];
+    trusted-public-keys = [
+      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
+      "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
+    ];
+  };
 
   # Enable common container config files in /etc/containers
   virtualisation = {
