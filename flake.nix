@@ -95,6 +95,9 @@
           ./common/desktop.nix
           ./omen/configuration.nix
           ./omen/twingate-gw.nix
+
+          # Home Manager for mebaran, built as part of the system
+          mynixhome.nixosModules.desktop
         ];
       };
     };
