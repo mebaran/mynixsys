@@ -69,6 +69,9 @@
 
           # The new abstracted WSL options
           ./wsl/wsl.nix
+
+          # Home Manager for mebaran (CLI profile), built as part of the system
+          mynixhome.nixosModules.cli
         ];
       };
 

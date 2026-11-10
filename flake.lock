@@ -487,11 +487,11 @@
         "stylix": "stylix"
       },
       "locked": {
-        "lastModified": 1794259314,
-        "narHash": "sha256-hkEdfnmhXb+Ojjw2XQzq7mJQDYHrVkHadF29jYhnmN4=",
+        "lastModified": 1794339165,
+        "narHash": "sha256-7JLIgX0+lCB1FwOsvJr4Jdno8Dzu64SZcz0xelk7DYE=",
         "owner": "mebaran",
         "repo": "mynixhome",
-        "rev": "ca65342bac05084276dbc820bcd730a38a95c0c2",
+        "rev": "0a6f34dbc94efcaa135d095c82fdff887265cf29",
         "type": "github"
       },
       "original": {
