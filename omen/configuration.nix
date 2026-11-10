@@ -82,6 +82,20 @@ in {
     trusted-users = ["root" "mebaran"];
   };
 
+  # Memory-exhaustion guards: without swap, heavy builds thrashed the page
+  # cache into a hard freeze. zram allocates lazily; 30% is only a cap.
+  zramSwap = {
+    enable = true;
+    memoryPercent = 30;
+  };
+  # Confine builds so a runaway one gets killed instead of the desktop.
+  systemd.services.nix-daemon.serviceConfig = {
+    MemoryHigh = "22G";
+    MemoryMax = "26G";
+    OOMScoreAdjust = 500;
+  };
+  systemd.oomd.enableSystemSlice = true;
+
   networking.hostName = "omen"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
