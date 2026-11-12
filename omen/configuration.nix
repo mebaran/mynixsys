@@ -166,15 +166,6 @@ in {
     enable = true;
     openFirewall = false;
   };
-  services.sunshine = {
-    package = pkgs.sunshine.override {
-      cudaSupport = true;
-    };
-    enable = true;
-    autoStart = true;
-    capSysAdmin = true;
-    openFirewall = true;
-  };
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
   # networking.firewall.allowedUDPPorts = [ ... ];
