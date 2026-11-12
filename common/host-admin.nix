@@ -15,7 +15,7 @@
         nh clean profile /nix/var/nix/profiles/system --keep "''${1:-1}"
       ''
       + lib.optionalString config.boot.loader.systemd-boot.enable ''
-        sudo /run/current-system/bin/switch-to-configuration boot
+        run0 /run/current-system/bin/switch-to-configuration boot
       '';
   };
 in {
@@ -28,6 +28,11 @@ in {
       extraArgs = "--keep 3 --keep-since 7d";
     };
   };
+
+  # Elevate via run0 (polkit) instead of nh's auto order (doas, sudo, run0, ...).
+  # polkit shows the desktop agent's dialog when there's no TTY (e.g. agents
+  # like Claude Code running `nh os switch`) and a text prompt over ssh.
+  environment.sessionVariables.NH_ELEVATION_STRATEGY = "/run/current-system/sw/bin/run0";
 
   environment.systemPackages = [
     pkgs.home-manager
