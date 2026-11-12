@@ -10,12 +10,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # extra flakes for more more modules
-    llm-agents = {
-      url = "github:numtide/llm-agents.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Home Manager flake from your GitHub repo
     mynixhome = {
       url = "github:mebaran/mynixhome";
@@ -29,7 +23,6 @@
     nixos-wsl,
     determinate,
     mynixhome,
-    llm-agents,
     ...
   }: let
     lib = nixpkgs.lib;
@@ -54,9 +47,6 @@
     nixosConfigurations = {
       nixos-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = {
-          inherit llm-agents;
-        };
         modules = [
           # Import the WSL module from the flake input (replaces <nixos-wsl/modules>)
           determinate.nixosModules.default
@@ -77,9 +67,6 @@
 
       omen = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = {
-          inherit llm-agents;
-        };
         modules = [
           determinate.nixosModules.default
 
